@@ -43,6 +43,37 @@ static enum {
 
 static bool quiet;
 
+enum cert_attr {
+	CERT_ATTR_SIGNATURE,
+	CERT_ATTR_PAYLOAD,
+	CERT_ATTR_MAX
+};
+
+static const struct blob_attr_info cert_policy[CERT_ATTR_MAX] = {
+	[CERT_ATTR_SIGNATURE] = { .type = BLOB_ATTR_BINARY },
+	[CERT_ATTR_PAYLOAD] = { .type = BLOB_ATTR_NESTED },
+};
+
+enum cert_payload_attr {
+	CERT_PL_ATTR_CERTTYPE,
+	CERT_PL_ATTR_CERTID,
+	CERT_PL_ATTR_PUBKEY,
+	CERT_PL_ATTR_KEY_FINGERPRINT,
+	CERT_PL_ATTR_MAX
+};
+
+enum certtype_id {
+	CERTTYPE_AUTH,
+	CERTTYPE_REVOKE
+};
+
+static const struct blobmsg_policy cert_payload_policy[CERT_PL_ATTR_MAX] = {
+	[CERT_PL_ATTR_CERTTYPE] = { .type = BLOBMSG_TYPE_INT8 },
+	[CERT_PL_ATTR_CERTID] = { .type = BLOBMSG_TYPE_INT64 },
+	[CERT_PL_ATTR_PUBKEY] = { .type = BLOBMSG_TYPE_STRING },
+	[CERT_PL_ATTR_KEY_FINGERPRINT] = { .type = BLOBMSG_TYPE_STRING },
+};
+
 static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
 	fprintf(stderr, "not implemented\n");
 	return 1;
