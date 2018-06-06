@@ -28,9 +28,12 @@
 
 #include <json-c/json.h>
 #include <libubox/blob.h>
+#include <libubox/utils.h>
 #include <libubox/list.h>
 #include <libubox/vlist.h>
 #include <libubox/blobmsg_json.h>
+
+#define CERT_BUF_LEN 4096
 
 static enum {
 	CMD_APPEND,
@@ -57,12 +60,15 @@ static const struct blob_attr_info cert_policy[CERT_ATTR_MAX] = {
 enum cert_payload_attr {
 	CERT_PL_ATTR_CERTTYPE,
 	CERT_PL_ATTR_CERTID,
+	CERT_PL_ATTR_VALIDFROMTIME,
+	CERT_PL_ATTR_EXPIRETIME,
 	CERT_PL_ATTR_PUBKEY,
 	CERT_PL_ATTR_KEY_FINGERPRINT,
 	CERT_PL_ATTR_MAX
 };
 
 enum certtype_id {
+	CERTTYPE_UNSPEC,
 	CERTTYPE_AUTH,
 	CERTTYPE_REVOKE
 };
@@ -70,9 +76,41 @@ enum certtype_id {
 static const struct blobmsg_policy cert_payload_policy[CERT_PL_ATTR_MAX] = {
 	[CERT_PL_ATTR_CERTTYPE] = { .type = BLOBMSG_TYPE_INT8 },
 	[CERT_PL_ATTR_CERTID] = { .type = BLOBMSG_TYPE_INT64 },
+	[CERT_PL_ATTR_VALIDFROMTIME] = { .type = BLOBMSG_TYPE_INT64 },
+	[CERT_PL_ATTR_EXPIRETIME] = { .type = BLOBMSG_TYPE_INT64 },
 	[CERT_PL_ATTR_PUBKEY] = { .type = BLOBMSG_TYPE_STRING },
 	[CERT_PL_ATTR_KEY_FINGERPRINT] = { .type = BLOBMSG_TYPE_STRING },
 };
+
+
+static int cert_load(const char *certfile, struct blob_attr *certtb[]) {
+	FILE *f;
+	struct blob_buf certbuf;
+	int ret = 0;
+	char filebuf[CERT_BUF_LEN];
+	int len;
+
+	blob_buf_init(&certbuf, 0);
+
+	f = fopen(certfile, "r");
+	if (!f)
+		return 1;
+
+	do {
+		len = fread(&filebuf, 1, CERT_BUF_LEN - 1, f);
+		blob_put_raw(&certbuf, filebuf, len);
+	} while(!feof(f) && !ferror(f));
+
+	ret = ferror(f);
+	fclose(f);
+
+	if (ret)
+		return 1;
+
+	blob_parse(certbuf.head, certtb, cert_policy, CERT_ATTR_MAX);
+
+	return 0;
+}
 
 static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
 	fprintf(stderr, "not implemented\n");
@@ -80,8 +118,14 @@ static int cert_append(const char *certfile, const char *pubkeyfile, const char 
 }
 
 static int cert_dump(const char *certfile) {
-	fprintf(stderr, "not implemented\n");
-	return 1;
+	struct blob_attr *certtb[CERT_ATTR_MAX];
+
+	if (cert_load(certfile, certtb)) {
+		fprintf(stderr, "cannot parse cert\n");
+		return 1;
+	}
+
+	return 0;
 }
 
 static int cert_issue(const char *certfile, const char *pubkeyfile, const char *seckeyfile) {
