@@ -76,12 +76,17 @@ enum certtype_id {
 };
 
 static const struct blobmsg_policy cert_payload_policy[CERT_PL_ATTR_MAX] = {
-	[CERT_PL_ATTR_CERTTYPE] = { .name = "certtype", .type = BLOBMSG_TYPE_INT8 },
-	[CERT_PL_ATTR_CERTID] = { .name = "certid", .type = BLOBMSG_TYPE_INT64 },
+	[CERT_PL_ATTR_CERTTYPE] = { .name = "certtype", .type = BLOBMSG_TYPE_INT32 },
+	[CERT_PL_ATTR_CERTID] = { .name = "certid", .type = BLOBMSG_TYPE_INT32 },
 	[CERT_PL_ATTR_VALIDFROMTIME] = { .name = "validfrom", .type = BLOBMSG_TYPE_INT64 },
 	[CERT_PL_ATTR_EXPIRETIME] = { .name = "expiresat", .type = BLOBMSG_TYPE_INT64 },
 	[CERT_PL_ATTR_PUBKEY] = { .name = "pubkey", .type = BLOBMSG_TYPE_STRING },
 	[CERT_PL_ATTR_KEY_FINGERPRINT] = { .name = "fingerprint", .type = BLOBMSG_TYPE_STRING },
+};
+
+struct cert_object {
+	struct list_head list;
+	struct blob_attr **cert;
 };
 
 static int write_file(const char *filename, void *buf, size_t len, bool append) {
@@ -97,10 +102,12 @@ static int write_file(const char *filename, void *buf, size_t len, bool append) 
 	return (outlen == len);
 }
 
-static int cert_load(const char *certfile, struct blob_attr *certtb[]) {
+static int cert_load(const char *certfile, struct list_head *chain) {
 	FILE *f;
-	int ret = 0;
+	struct blob_attr *certtb[CERT_ATTR_MAX];
+	struct cert_object *cobj;
 	char filebuf[CERT_BUF_LEN];
+	int ret = 0;
 	int len;
 
 	f = fopen(certfile, "r");
@@ -113,8 +120,12 @@ static int cert_load(const char *certfile, struct blob_attr *certtb[]) {
 	if (ret)
 		return 1;
 	ret = blob_parse(filebuf, certtb, cert_policy, CERT_ATTR_MAX);
+	cobj = calloc(1, sizeof(*cobj));
+	cobj->cert = &certtb;
+	list_add_tail(&cobj->list, chain);
+
 	fprintf(stderr, "blob_parse return %d\n", ret);
-	return (ret != 0);
+	return (ret <= 0);
 }
 
 static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
@@ -122,17 +133,11 @@ static int cert_append(const char *certfile, const char *pubkeyfile, const char 
 	return 1;
 }
 
-static int cert_dump(const char *certfile) {
-	struct blob_attr *certtb[CERT_ATTR_MAX];
+static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 	int i;
 
-	if (cert_load(certfile, certtb)) {
-		fprintf(stderr, "cannot parse cert\n");
-		return 1;
-	}
-
 	for (i = 0; i < CERT_ATTR_MAX; i++) {
-		struct blob_attr *v = certtb[i];
+		struct blob_attr *v = cert[i];
 
 		if (!v)
 			continue;
@@ -142,10 +147,24 @@ static int cert_dump(const char *certfile) {
 			fprintf(stdout, "signature: %s\n", blob_data(v));
 			break;
 		case BLOB_ATTR_NESTED:
-			fprintf(stdout, "payload:\n%s\n", blobmsg_format_json(blob_data(v), true));
+			fprintf(stdout, "payload:\n%s\n", blobmsg_format_json(blob_data(v), false));
 			break;
 		}
 	}
+}
+
+static int cert_dump(const char *certfile) {
+	struct cert_object *cobj;
+	static LIST_HEAD(certchain);
+
+	if (cert_load(certfile, &certchain)) {
+		fprintf(stderr, "cannot parse cert\n");
+		return 1;
+	}
+
+	list_for_each_entry(cobj, &certchain, list)
+		cert_dump_blob(cobj->cert);
+
 	return 0;
 }
 
@@ -156,6 +175,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	struct stat st;
 	int pklen, siglen;
 	int revoker = 1;
+	void *c;
 
 	FILE *pkf, *sigf;
 	char pkb[512];
@@ -191,7 +211,8 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 
 	while (revoker >= 0) {
 		blob_buf_init(&payloadbuf, 0);
-		blobmsg_add_u8(&payloadbuf, "certtype", revoker?CERTTYPE_REVOKE:CERTTYPE_AUTH);
+		c = blobmsg_open_table(&payloadbuf, "ucert");
+		blobmsg_add_u32(&payloadbuf, "certtype", revoker?CERTTYPE_REVOKE:CERTTYPE_AUTH);
 		blobmsg_add_u64(&payloadbuf, "validfrom", tv.tv_sec);
 		if (!revoker) {
 			blobmsg_add_u64(&payloadbuf, "expiresat", tv.tv_sec + 60 * 60 * 24 * 365);
@@ -199,6 +220,8 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		} else {
 			blobmsg_add_string(&payloadbuf, "fingerprint", pkfp);
 		}
+
+		blobmsg_close_table(&payloadbuf, c);
 
 		snprintf(fname, sizeof(fname) - 1, "%s/%s", tmpdir, revoker?"revoker":"payload");
 		write_file(fname, blob_data(payloadbuf.head), blob_len(payloadbuf.head), false);
@@ -225,7 +248,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		blob_put(&certbuf, CERT_ATTR_SIGNATURE, sigb, siglen);
 		blob_put(&certbuf, CERT_ATTR_PAYLOAD, blob_data(payloadbuf.head), blob_len(payloadbuf.head));
 		snprintf(fname, sizeof(fname) - 1, "%s%s", certfile, revoker?".revoke":"");
-		write_file(fname, blob_data(certbuf.head), blob_len(certbuf.head), false);
+		write_file(fname, certbuf.head, blob_raw_len(certbuf.head), false);
 		revoker--;
 	}
 
