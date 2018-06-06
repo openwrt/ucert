@@ -33,6 +33,8 @@
 #include <libubox/vlist.h>
 #include <libubox/blobmsg_json.h>
 
+#include "usign.h"
+
 #define CERT_BUF_LEN 4096
 
 static enum {
@@ -107,9 +109,7 @@ static int cert_load(const char *certfile, struct blob_attr *certtb[]) {
 	if (ret)
 		return 1;
 
-	blob_parse(certbuf.head, certtb, cert_policy, CERT_ATTR_MAX);
-
-	return 0;
+	return (blob_parse(certbuf.head, certtb, cert_policy, CERT_ATTR_MAX) != 0);
 }
 
 static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
@@ -129,6 +129,14 @@ static int cert_dump(const char *certfile) {
 }
 
 static int cert_issue(const char *certfile, const char *pubkeyfile, const char *seckeyfile) {
+	struct blob_buf certbuf;
+	struct blob_buf payloadbuf;
+
+	blob_buf_init(&payloadbuf, 0);
+/*	usign_s() */
+
+	blob_buf_init(&certbuf, 0);
+
 	fprintf(stderr, "not implemented\n");
 	return 1;
 }

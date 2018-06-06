@@ -7,6 +7,6 @@ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 find_library(json NAMES json-c json)
 
-ADD_EXECUTABLE(ucert ucert.c)
+ADD_EXECUTABLE(ucert ucert.c usign-exec.c)
 TARGET_LINK_LIBRARIES(ucert ubox blobmsg_json ${json})
 INSTALL(TARGETS ucert RUNTIME DESTINATION bin)
