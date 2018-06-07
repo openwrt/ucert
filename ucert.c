@@ -48,6 +48,13 @@ static enum {
 
 static bool quiet;
 
+/*
+ * ucert structure
+ * |               BLOB                    |
+ * |    SIGNATURE    |       PAYLOAD       |
+ * |                 |[ BLOBMSG CONTAINER ]|
+ * |                 |[[T,i,v,e,f,pubkey ]]|
+ */
 enum cert_attr {
 	CERT_ATTR_SIGNATURE,
 	CERT_ATTR_PAYLOAD,
@@ -93,11 +100,13 @@ static const struct blobmsg_policy cert_payload_policy[CERT_PL_ATTR_MAX] = {
 	[CERT_PL_ATTR_KEY_FINGERPRINT] = { .name = "fingerprint", .type = BLOBMSG_TYPE_STRING },
 };
 
+/* list to store certificate chain at runtime */
 struct cert_object {
 	struct list_head list;
 	struct blob_attr *cert[CERT_ATTR_MAX];
 };
 
+/* write buffer to file */
 static int write_file(const char *filename, void *buf, size_t len, bool append) {
 	FILE *f;
 	size_t outlen;
@@ -111,6 +120,7 @@ static int write_file(const char *filename, void *buf, size_t len, bool append) 
 	return (outlen == len);
 }
 
+/* load certfile into list */
 static int cert_load(const char *certfile, struct list_head *chain) {
 	FILE *f;
 	struct blob_attr *certtb[CERT_ATTR_MAX];
@@ -157,6 +167,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	return (ret <= 0);
 }
 
+/* append signature to certfile */
 static int cert_append(const char *certfile, const char *sigfile) {
 	FILE *fs;
 	char filebuf[CERT_BUF_LEN];
@@ -181,6 +192,7 @@ static int cert_append(const char *certfile, const char *sigfile) {
 	return ret;
 }
 
+/* verify the signature of a single chain element */
 static int cert_verify_blob(struct blob_attr *cert[CERT_ATTR_MAX],
 		       const char *pubkeyfile, const char *pubkeydir) {
 	int i;
@@ -219,6 +231,7 @@ static int cert_verify_blob(struct blob_attr *cert[CERT_ATTR_MAX],
 	return ret;
 }
 
+/* verify cert chain (and message) */
 static int chain_verify(const char *msgfile, const char *pubkeyfile,
 			const char *pubkeydir, struct list_head *chain) {
 	struct cert_object *cobj;
@@ -338,6 +351,7 @@ clean_and_return:
 	return ret | checkmsg;
 }
 
+/* dump single chain element to console */
 static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 	int i;
 
@@ -358,6 +372,7 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 	}
 }
 
+/* dump certfile to console */
 static int cert_dump(const char *certfile) {
 	struct cert_object *cobj;
 	static LIST_HEAD(certchain);
@@ -377,6 +392,7 @@ static int cert_dump(const char *certfile) {
 	return 0;
 }
 
+/* issue an auth certificate for pubkey */
 static int cert_issue(const char *certfile, const char *pubkeyfile, const char *seckeyfile) {
 	struct blob_buf certbuf;
 	struct blob_buf payloadbuf;
@@ -468,6 +484,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	return 0;
 }
 
+/* process revoker certificate */
 static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	static LIST_HEAD(certchain);
 	struct cert_object *cobj;
@@ -557,6 +574,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	return ret;
 }
 
+/* load and verify certfile (and message) */
 static int cert_verify(const char *certfile, const char *pubkeyfile, const char *pubkeydir, const char *msgfile) {
 	static LIST_HEAD(certchain);
 
@@ -568,6 +586,7 @@ static int cert_verify(const char *certfile, const char *pubkeyfile, const char 
 	return chain_verify(msgfile, pubkeyfile, pubkeydir, &certchain);
 }
 
+/* output help */
 static int usage(const char *cmd)
 {
 	fprintf(stderr,
@@ -591,6 +610,7 @@ static int usage(const char *cmd)
 	return 1;
 }
 
+/* parse command line options and call functions */
 int main(int argc, char *argv[]) {
 	int ch;
 	const char *msgfile = NULL;
