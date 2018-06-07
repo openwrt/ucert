@@ -341,7 +341,7 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 
 		switch(cert_policy[i].type) {
 		case BLOB_ATTR_BINARY:
-			fprintf(stdout, "signature:\n---\n%s\n---\n", (char *) blob_data(v));
+			fprintf(stdout, "signature:\n---\n%s---\n", (char *) blob_data(v));
 			break;
 		case BLOB_ATTR_NESTED:
 			fprintf(stdout, "payload:\n---\n%s\n---\n", blobmsg_format_json_indent(blob_data(v), false, 0));
@@ -434,7 +434,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		if (siglen < 1)
 			return 1;
 
-		sigb[siglen-1] = '\0';
+		sigb[siglen] = '\0';
 		fclose(sigf);
 
 		unlink(fname);
