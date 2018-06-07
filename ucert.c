@@ -161,14 +161,8 @@ static int cert_append(const char *certfile, const char *sigfile) {
 	FILE *fs;
 	char filebuf[CERT_BUF_LEN];
 	struct blob_buf sigbuf;
-	struct stat st;
 	int len;
 	int ret;
-
-	if (stat(certfile, &st) != 0) {
-		fprintf(stderr, "certfile %s doesn't exist, can't append.\n", certfile);
-		return -1;
-	}
 
 	fs = fopen(sigfile, "r");
 	if (!fs)
@@ -481,7 +475,7 @@ static int usage(const char *cmd)
 	fprintf(stderr,
 		"Usage: %s <command> <options>\n"
 		"Commands:\n"
-		"  -A:			append (needs -c and -x)\n"
+		"  -A:			append signature (needs -c and -x)\n"
 		"  -D:			dump\n"
 		"  -I:			issue cert and revoker (needs -c and -p and -s)\n"
 		"  -R:			process revoker certificate (needs -c)\n"
