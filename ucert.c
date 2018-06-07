@@ -624,39 +624,63 @@ int main(int argc, char *argv[]) {
 	while ((ch = getopt(argc, argv, "ADIRVc:m:p:P:qs:x:")) != -1) {
 		switch (ch) {
 		case 'A':
+			if (cmd != CMD_NONE)
+				return usage(argv[0]);
 			cmd = CMD_APPEND;
 			break;
 		case 'D':
+			if (cmd != CMD_NONE)
+				return usage(argv[0]);
 			cmd = CMD_DUMP;
 			break;
 		case 'I':
+			if (cmd != CMD_NONE)
+				return usage(argv[0]);
 			cmd = CMD_ISSUE;
 			break;
 		case 'R':
+			if (cmd != CMD_NONE)
+				return usage(argv[0]);
 			cmd = CMD_REVOKE;
 			break;
 		case 'V':
+			if (cmd != CMD_NONE)
+				return usage(argv[0]);
 			cmd = CMD_VERIFY;
 			break;
 		case 'c':
+			if (certfile || cmd == CMD_NONE)
+				return usage(argv[0]);
 			certfile = optarg;
 			break;
 		case 'm':
+			if (msgfile || cmd != CMD_VERIFY)
+				return usage(argv[0]);
 			msgfile = optarg;
 			break;
 		case 'p':
+			if (pubkeyfile || (cmd != CMD_VERIFY && cmd != CMD_ISSUE) || cmd == CMD_NONE)
+				return usage(argv[0]);
 			pubkeyfile = optarg;
 			break;
 		case 'P':
+			if (pubkeydir || (cmd != CMD_VERIFY && cmd != CMD_REVOKE) || cmd == CMD_NONE)
+				return usage(argv[0]);
 			pubkeydir = optarg;
 			break;
 		case 'q':
+			if (quiet || cmd == CMD_NONE)
+				return usage(argv[0]);
 			quiet = true;
 			break;
 		case 's':
+			if (seckeyfile || cmd != CMD_ISSUE || cmd == CMD_NONE)
+				return usage(argv[0]);
 			seckeyfile = optarg;
 			break;
 		case 'x':
+			if (sigfile || cmd != CMD_APPEND || cmd == CMD_NONE)
+				return usage(argv[0]);
 			sigfile = optarg;
 			break;
 		default:
