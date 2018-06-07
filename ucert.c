@@ -454,9 +454,96 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	return 0;
 }
 
-static int cert_process_revoker(const char *certfile) {
-	fprintf(stderr, "not implemented\n");
-	return 1;
+static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
+	static LIST_HEAD(certchain);
+	struct cert_object *cobj;
+	struct blob_attr *containertb[CERT_CT_ATTR_MAX];
+	struct blob_attr *payloadtb[CERT_PL_ATTR_MAX];
+	struct stat st;
+	struct timeval tv;
+	uint64_t validfrom;
+	uint32_t certtype;
+	char *fingerprint;
+	char rfname[512];
+
+	int ret;
+
+	if (cert_load(certfile, &certchain)) {
+		fprintf(stderr, "cannot parse cert\n");
+		return 1;
+	}
+
+	list_for_each_entry(cobj, &certchain, list) {
+		/* blob has payload, verify that using signature */
+		if (!cobj->cert[CERT_ATTR_PAYLOAD])
+			return 2;
+		ret = cert_verify_blob(cobj->cert, NULL, pubkeydir);
+		if (ret)
+			return ret;
+
+		blobmsg_parse(cert_cont_policy,
+			      ARRAY_SIZE(cert_cont_policy),
+			      containertb,
+			      blob_data(cobj->cert[CERT_ATTR_PAYLOAD]),
+			      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
+		if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
+			fprintf(stderr, "no ucert in signed payload\n");
+			return 2;
+		}
+
+		blobmsg_parse(cert_payload_policy,
+			      ARRAY_SIZE(cert_payload_policy),
+			      payloadtb,
+			      blobmsg_data(containertb[CERT_CT_ATTR_PAYLOAD]),
+			      blobmsg_data_len(containertb[CERT_CT_ATTR_PAYLOAD]));
+
+		if (!payloadtb[CERT_PL_ATTR_CERTTYPE] ||
+		    !payloadtb[CERT_PL_ATTR_VALIDFROMTIME] ||
+		    !payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]) {
+				fprintf(stderr, "missing mandatory ucert attributes\n");
+				return 2;
+			}
+
+		certtype = blobmsg_get_u32(payloadtb[CERT_PL_ATTR_CERTTYPE]);
+		validfrom = blobmsg_get_u64(payloadtb[CERT_PL_ATTR_VALIDFROMTIME]);
+		fingerprint = blobmsg_get_string(payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]);
+
+		if (certtype != CERTTYPE_REVOKE) {
+			fprintf(stderr, "wrong certificate type\n");
+			return 2;
+		}
+
+		gettimeofday(&tv, NULL);
+		if (tv.tv_sec < validfrom) {
+			return 3;
+		}
+
+		snprintf(rfname, sizeof(rfname)-1, "%s/%s", pubkeydir, fingerprint);
+		/* check if entry in pubkeydir exists */
+		if (stat(rfname, &st) == 0) {
+			char tml[64] = {0};
+			/* if it's an existing revoker deadlink we are happy */
+			if (readlink(rfname, tml, sizeof(tml)) > 0 &&
+			    !strcmp(tml, ".revoked.")) {
+				if (!quiet)
+					fprintf(stdout, "existing revoker deadlink for key %s\n", fingerprint);
+				continue;
+			};
+
+			/* remove any other entry */
+			if (unlink(rfname))
+				return -1;
+		}
+
+		ret = symlink(".revoked.", rfname);
+		if (ret)
+			return ret;
+
+		if (!quiet)
+			fprintf(stdout, "created revoker deadlink for key %s\n", fingerprint);
+	};
+
+	return ret;
 }
 
 static int cert_verify(const char *certfile, const char *pubkeyfile, const char *pubkeydir, const char *msgfile) {
@@ -476,10 +563,10 @@ static int usage(const char *cmd)
 		"Usage: %s <command> <options>\n"
 		"Commands:\n"
 		"  -A:			append signature (needs -c and -x)\n"
-		"  -D:			dump\n"
+		"  -D:			dump (needs -c)\n"
 		"  -I:			issue cert and revoker (needs -c and -p and -s)\n"
-		"  -R:			process revoker certificate (needs -c)\n"
-		"  -V:			verify (needs -c and -p|-P)\n"
+		"  -R:			process revoker certificate (needs -c and -P)\n"
+		"  -V:			verify (needs -c and -p|-P, may have -m)\n"
 		"Options:\n"
 		"  -c <file>:		certificate file\n"
 		"  -m <file>:		message file (verify only)\n"
@@ -563,8 +650,8 @@ int main(int argc, char *argv[]) {
 		else
 			return usage(argv[0]);
 	case CMD_REVOKE:
-		if (certfile)
-			return cert_process_revoker(certfile);
+		if (certfile && pubkeydir)
+			return cert_process_revoker(certfile, pubkeydir);
 		else
 			return usage(argv[0]);
 	case CMD_VERIFY:
