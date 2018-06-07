@@ -30,6 +30,11 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 		usign_argv[usign_argc++] = pubkeydir;
 	}
 
+	if (sigfile) {
+		usign_argv[usign_argc++] = "-x";
+		usign_argv[usign_argc++] = sigfile;
+	}
+
 	pid = fork();
 	switch (pid) {
 	case -1:
