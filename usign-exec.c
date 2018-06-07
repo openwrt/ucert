@@ -120,8 +120,6 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 		return -1;
 
 	case 0:
-		uloop_done();
-
 		dup2(fds[1], 1);
 
 		close(0);

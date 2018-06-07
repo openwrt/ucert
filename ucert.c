@@ -59,6 +59,15 @@ static const struct blob_attr_info cert_policy[CERT_ATTR_MAX] = {
 	[CERT_ATTR_PAYLOAD] = { .type = BLOB_ATTR_NESTED },
 };
 
+enum cert_cont_attr {
+	CERT_CT_ATTR_PAYLOAD,
+	CERT_CT_ATTR_MAX
+};
+
+static const struct blobmsg_policy cert_cont_policy[CERT_CT_ATTR_MAX] = {
+	[CERT_CT_ATTR_PAYLOAD] = { .name = "ucert", .type = BLOBMSG_TYPE_TABLE },
+};
+
 enum cert_payload_attr {
 	CERT_PL_ATTR_CERTTYPE,
 	CERT_PL_ATTR_CERTID,
@@ -115,22 +124,167 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 		return 1;
 
 	len = fread(&filebuf, 1, CERT_BUF_LEN - 1, f);
+	if (len < 64)
+		return 1;
+
 	ret = ferror(f) || !feof(f);
 	fclose(f);
 	if (ret)
 		return 1;
+
+	/* TODO: read more than one blob from file */
 	ret = blob_parse(filebuf, certtb, cert_policy, CERT_ATTR_MAX);
 	cobj = calloc(1, sizeof(*cobj));
 	cobj->cert = &certtb;
 	list_add_tail(&cobj->list, chain);
 
-	fprintf(stderr, "blob_parse return %d\n", ret);
 	return (ret <= 0);
 }
 
 static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
 	fprintf(stderr, "not implemented\n");
 	return 1;
+}
+
+static int cert_verify_blob(struct blob_attr *cert[CERT_ATTR_MAX],
+		       const char *pubkeyfile, const char *pubkeydir) {
+	int i;
+	char msgfname[256], sigfname[256];
+	int ret;
+	char tmpdir[] = "/tmp/ucert-XXXXXX";
+
+	if (mkdtemp(tmpdir) == NULL)
+		return errno;
+
+	snprintf(msgfname, sizeof(msgfname) - 1, "%s/%s", tmpdir, "payload");
+	snprintf(sigfname, sizeof(sigfname) - 1, "%s/%s", tmpdir, "payload.sig");
+
+	for (i = 0; i < CERT_ATTR_MAX; i++) {
+		struct blob_attr *v = cert[i];
+
+		if (!v)
+			break;
+
+		switch(cert_policy[i].type) {
+		case BLOB_ATTR_BINARY:
+			write_file(sigfname, blob_data(v), blob_len(v), false);
+			break;
+		case BLOB_ATTR_NESTED:
+			write_file(msgfname, blob_data(v), blob_len(v), false);
+			break;
+		}
+	}
+
+	ret = usign_v(msgfname, pubkeyfile, pubkeydir, sigfname, quiet);
+
+	unlink(msgfname);
+	unlink(sigfname);
+	rmdir(tmpdir);
+
+	return ret;
+}
+
+static int chain_verify(const char *msgfile, const char *pubkeyfile,
+			const char *pubkeydir, struct list_head *chain) {
+	struct cert_object *cobj;
+	struct blob_attr *containertb[CERT_CT_ATTR_MAX];
+	struct blob_attr *payloadtb[CERT_PL_ATTR_MAX];
+	char tmpdir[] = "/tmp/ucert-XXXXXX";
+	char chainedpubkey[256] = {0};
+	char extsigfile[256] = {0};
+	int ret = 1;
+	int checkmsg = 0;
+
+	if (mkdtemp(tmpdir) == NULL)
+		return errno;
+
+	if (msgfile)
+		checkmsg = -1;
+
+	list_for_each_entry(cobj, chain, list) {
+		ret = cert_verify_blob(cobj->cert, chainedpubkey[0]?chainedpubkey:pubkeyfile, pubkeydir);
+		if (ret)
+			goto clean_and_return;
+
+		if (cobj->cert[CERT_ATTR_PAYLOAD]) {
+			struct timeval tv;
+			uint64_t validfrom;
+			uint64_t expiresat;
+			uint32_t certtype;
+
+			blobmsg_parse(cert_cont_policy,
+				      ARRAY_SIZE(cert_cont_policy),
+				      containertb,
+				      blob_data(cobj->cert[CERT_ATTR_PAYLOAD]),
+				      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
+			if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
+				ret = 1;
+				fprintf(stderr, "no ucert in signed payload\n");
+				goto clean_and_return;
+			}
+			blobmsg_parse(cert_payload_policy,
+				      ARRAY_SIZE(cert_payload_policy),
+				      payloadtb,
+				      blobmsg_data(containertb[CERT_CT_ATTR_PAYLOAD]),
+				      blobmsg_data_len(containertb[CERT_CT_ATTR_PAYLOAD]));
+
+			if (!payloadtb[CERT_PL_ATTR_CERTTYPE] ||
+			    !payloadtb[CERT_PL_ATTR_VALIDFROMTIME] ||
+			    !payloadtb[CERT_PL_ATTR_EXPIRETIME] ||
+			    !payloadtb[CERT_PL_ATTR_PUBKEY]) {
+				ret = 1;
+				fprintf(stderr, "missing mandatory ucert attributes\n");
+				goto clean_and_return;
+			}
+			certtype = blobmsg_get_u32(payloadtb[CERT_PL_ATTR_CERTTYPE]);
+			validfrom = blobmsg_get_u64(payloadtb[CERT_PL_ATTR_VALIDFROMTIME]);
+			expiresat = blobmsg_get_u64(payloadtb[CERT_PL_ATTR_EXPIRETIME]);
+
+			if (certtype != CERTTYPE_AUTH) {
+				ret = 2;
+				fprintf(stderr, "wrong certificate type\n");
+				goto clean_and_return;
+			}
+
+			gettimeofday(&tv, NULL);
+			if (tv.tv_sec < validfrom ||
+			    tv.tv_sec >= expiresat) {
+				ret = 3;
+				fprintf(stderr, "certificate expired\n");
+				goto clean_and_return;
+			}
+
+			snprintf(chainedpubkey, sizeof(chainedpubkey) - 1, "%s/%s", tmpdir, "chained-pubkey");
+			write_file(chainedpubkey,
+				   blobmsg_data(payloadtb[CERT_PL_ATTR_PUBKEY]),
+				   blobmsg_data_len(payloadtb[CERT_PL_ATTR_PUBKEY]),
+				   false);
+		} else {
+			if (msgfile) {
+				snprintf(extsigfile, sizeof(extsigfile) - 1, "%s/%s", tmpdir, "ext-sig");
+				write_file(extsigfile,
+					   blob_data(cobj->cert[CERT_ATTR_SIGNATURE]),
+					   blob_len(cobj->cert[CERT_ATTR_SIGNATURE]),
+					   false);
+				checkmsg = ret = usign_v(msgfile,
+					      chainedpubkey[0]?chainedpubkey:pubkeyfile,
+					      pubkeydir, extsigfile, quiet);
+				unlink(extsigfile);
+			} else {
+				fprintf(stderr, "stray trailing signature without anything to verify!\n");
+				ret = 1;
+			};
+		}
+	}
+
+	if (checkmsg == -1)
+		fprintf(stderr, "missing signature to verify message!\n");
+
+clean_and_return:
+	if (chainedpubkey[0])
+		unlink(chainedpubkey);
+	rmdir(tmpdir);
+	return ret | checkmsg;
 }
 
 static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
@@ -144,10 +298,10 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 
 		switch(cert_policy[i].type) {
 		case BLOB_ATTR_BINARY:
-			fprintf(stdout, "signature: %s\n", blob_data(v));
+			fprintf(stdout, "signature:\n---\n%s\n---\n", (char *) blob_data(v));
 			break;
 		case BLOB_ATTR_NESTED:
-			fprintf(stdout, "payload:\n%s\n", blobmsg_format_json(blob_data(v), false));
+			fprintf(stdout, "payload:\n---\n%s\n---\n", blobmsg_format_json_indent(blob_data(v), false, 0));
 			break;
 		}
 	}
@@ -176,7 +330,6 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	int pklen, siglen;
 	int revoker = 1;
 	void *c;
-
 	FILE *pkf, *sigf;
 	char pkb[512];
 	char sigb[512];
@@ -194,7 +347,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		return -1;
 
 	pklen = fread(pkb, 1, 512, pkf);
-	pkb[pklen - 1] = '\0';
+	pkb[pklen] = '\0';
 
 	if (pklen < 32)
 		return -1;
@@ -263,8 +416,14 @@ static int cert_process_revoker(const char *certfile) {
 }
 
 static int cert_verify(const char *certfile, const char *pubkeyfile, const char *pubkeydir, const char *msgfile) {
-	fprintf(stderr, "not implemented\n");
-	return 1;
+	static LIST_HEAD(certchain);
+
+	if (cert_load(certfile, &certchain)) {
+		fprintf(stderr, "cannot parse cert\n");
+		return 1;
+	}
+
+	return chain_verify(msgfile, pubkeyfile, pubkeydir, &certchain);
 }
 
 static int usage(const char *cmd)
