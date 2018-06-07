@@ -353,14 +353,18 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 static int cert_dump(const char *certfile) {
 	struct cert_object *cobj;
 	static LIST_HEAD(certchain);
+	unsigned int count = 0;
 
 	if (cert_load(certfile, &certchain)) {
 		fprintf(stderr, "cannot parse cert\n");
 		return 1;
 	}
 
-	list_for_each_entry(cobj, &certchain, list)
+	list_for_each_entry(cobj, &certchain, list) {
+		fprintf(stderr, "=== CHAIN ELEMENT %02u ===\n", ++count);
 		cert_dump_blob(cobj->cert);
+		fprintf(stderr, "========================\n");
+	}
 
 	return 0;
 }
