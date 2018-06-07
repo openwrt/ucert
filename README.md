@@ -1,6 +1,7 @@
 # ucert
 
-ucert is a signature-chaining wrapper around usign using libubox blob and blobmsg. 
+ucert is a signature-chaining wrapper around usign using blob and blobmsg.
+It's meant to be used for OpenWrt routers and uses libubox for most things, to allow dumping certificates in JSON format libjson-c and libblobmsg-json are used as well.
 
 ## a few words about security
 ucert inherits all its cryptographic properties from the underlying usign implementation which as such wasn't meant to be used in such a way.
