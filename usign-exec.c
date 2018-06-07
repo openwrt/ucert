@@ -20,6 +20,27 @@
 
 #include "usign.h"
 
+/*
+ * check for revoker deadlink in pubkeydir
+ * return true if a revoker exists, false otherwise
+ */
+int _usign_key_is_revoked(const char *fingerprint, const char *pubkeydir) {
+	char tml[64] = {0};
+	char rfname[256] = {0};
+
+	snprintf(rfname, sizeof(rfname)-1, "%s/%s", pubkeydir, fingerprint);
+	if (readlink(rfname, tml, sizeof(tml)) > 0 &&
+	    !strcmp(tml, ".revoked.")) {
+		return true;
+	};
+
+	return false;
+}
+
+/*
+ * call usign -S ...
+ * return WEXITSTATUS or -1 if fork or execv fails
+ */
 int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	pid_t pid;
 	int status;
@@ -57,6 +78,10 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 	return -1;
 }
 
+/*
+ * call usign -F ... and set fingerprint returned
+ * return WEXITSTATUS or -1 if fork or execv fails
+ */
 static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckeyfile, const char *sigfile) {
 	int fds[2];
 	pid_t pid;
@@ -118,31 +143,32 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 	return -1;
 }
 
+/*
+ * call usign -F -p ...
+ */
 int usign_f_pubkey(char *fingerprint, const char *pubkeyfile) {
 	return usign_f(fingerprint, pubkeyfile, NULL, NULL);
 }
 
+/*
+ * call usign -F -s ...
+ */
 int usign_f_seckey(char *fingerprint, const char *seckeyfile) {
 	return usign_f(fingerprint, NULL, seckeyfile, NULL);
 }
 
+/*
+ * call usign -F -x ...
+ */
 int usign_f_sig(char *fingerprint, const char *sigfile) {
 	return usign_f(fingerprint, NULL, NULL, sigfile);
 }
 
-int _usign_key_is_revoked(const char *fingerprint, const char *pubkeydir) {
-	char tml[64] = {0};
-	char rfname[256] = {0};
 
-	snprintf(rfname, sizeof(rfname)-1, "%s/%s", pubkeydir, fingerprint);
-	if (readlink(rfname, tml, sizeof(tml)) > 0 &&
-	    !strcmp(tml, ".revoked.")) {
-		return true;
-	};
-
-	return false;
-}
-
+/*
+ * call usign -V ...
+ * return WEXITSTATUS or -1 if fork or execv fails
+ */
 int usign_v(const char *msgfile, const char *pubkeyfile,
 	    const char *pubkeydir, const char *sigfile, bool quiet) {
 	pid_t pid;
