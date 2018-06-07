@@ -156,8 +156,15 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 		else
 			pos += blob_pad_len(bufpt);
 
+		if (!certtb[CERT_ATTR_SIGNATURE])
+			/* no signature -> drop */
+			break;
+
 		cobj = calloc(1, sizeof(*cobj));
-		memcpy(cobj->cert, &certtb, sizeof(certtb));
+		cobj->cert[CERT_ATTR_SIGNATURE] = blob_memdup(certtb[CERT_ATTR_SIGNATURE]);
+		if (certtb[CERT_ATTR_PAYLOAD])
+			cobj->cert[CERT_ATTR_PAYLOAD] = blob_memdup(certtb[CERT_ATTR_PAYLOAD]);
+
 		list_add_tail(&cobj->list, chain);
 		ret += pret;
 		bufpt = blob_next(bufpt);
