@@ -177,12 +177,17 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 	unsigned int usign_argc = 0;
 	char fingerprint[17];
 
-	if (usign_f_sig(fingerprint, sigfile))
+	if (usign_f_sig(fingerprint, sigfile)) {
+		if (!quiet)
+			fprintf(stdout, "cannot get signing key fingerprint\n");
 		return 1;
+	}
 
-	if (pubkeydir && _usign_key_is_revoked(fingerprint, pubkeydir))
+	if (pubkeydir && _usign_key_is_revoked(fingerprint, pubkeydir)) {
+		if (!quiet)
+			fprintf(stdout, "key %s has been revoked!\n", fingerprint);
 		return 1;
-
+	}
 	usign_argv[usign_argc++] = "/usr/bin/usign";
 	usign_argv[usign_argc++] = "-V";
 	usign_argv[usign_argc++] = "-m";
