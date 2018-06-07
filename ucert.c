@@ -95,7 +95,7 @@ static const struct blobmsg_policy cert_payload_policy[CERT_PL_ATTR_MAX] = {
 
 struct cert_object {
 	struct list_head list;
-	struct blob_attr **cert;
+	struct blob_attr *cert[CERT_ATTR_MAX];
 };
 
 static int write_file(const char *filename, void *buf, size_t len, bool append) {
@@ -114,10 +114,11 @@ static int write_file(const char *filename, void *buf, size_t len, bool append) 
 static int cert_load(const char *certfile, struct list_head *chain) {
 	FILE *f;
 	struct blob_attr *certtb[CERT_ATTR_MAX];
+	struct blob_attr *bufpt;
 	struct cert_object *cobj;
 	char filebuf[CERT_BUF_LEN];
-	int ret = 0;
-	int len;
+	int ret = 0, pret = 0;
+	int len, pos = 0;
 
 	f = fopen(certfile, "r");
 	if (!f)
@@ -132,18 +133,58 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	if (ret)
 		return 1;
 
-	/* TODO: read more than one blob from file */
-	ret = blob_parse(filebuf, certtb, cert_policy, CERT_ATTR_MAX);
-	cobj = calloc(1, sizeof(*cobj));
-	cobj->cert = &certtb;
-	list_add_tail(&cobj->list, chain);
+	bufpt = (struct blob_attr *)filebuf;
+	do {
+		pret = blob_parse(bufpt, certtb, cert_policy, CERT_ATTR_MAX);
+		if (pret <= 0)
+			/* no attributes found */
+			break;
+
+		if (pos + blob_pad_len(bufpt) > len)
+			/* blob exceeds filebuffer */
+			break;
+		else
+			pos += blob_pad_len(bufpt);
+
+		cobj = calloc(1, sizeof(*cobj));
+		memcpy(cobj->cert, &certtb, sizeof(certtb));
+		list_add_tail(&cobj->list, chain);
+		ret += pret;
+		bufpt = blob_next(bufpt);
+	/* repeat parsing while there is still enough remaining data in buffer */
+	} while(len > pos + sizeof(struct blob_attr));
 
 	return (ret <= 0);
 }
 
-static int cert_append(const char *certfile, const char *pubkeyfile, const char *sigfile) {
-	fprintf(stderr, "not implemented\n");
-	return 1;
+static int cert_append(const char *certfile, const char *sigfile) {
+	FILE *fs;
+	char filebuf[CERT_BUF_LEN];
+	struct blob_buf sigbuf;
+	struct stat st;
+	int len;
+	int ret;
+
+	if (stat(certfile, &st) != 0) {
+		fprintf(stderr, "certfile %s doesn't exist, can't append.\n", certfile);
+		return -1;
+	}
+
+	fs = fopen(sigfile, "r");
+	if (!fs)
+		return 1;
+
+	len = fread(&filebuf, 1, CERT_BUF_LEN - 1, fs);
+	ret = ferror(fs) || !feof(fs) || (len < 64);
+	fclose(fs);
+	if (ret)
+		return 1;
+
+	blob_buf_init(&sigbuf, 0);
+	blob_put(&sigbuf, CERT_ATTR_SIGNATURE, filebuf, len);
+	ret = write_file(certfile, sigbuf.head, blob_raw_len(sigbuf.head), true);
+	blob_buf_free(&sigbuf);
+	return ret;
 }
 
 static int cert_verify_blob(struct blob_attr *cert[CERT_ATTR_MAX],
@@ -202,15 +243,16 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 		checkmsg = -1;
 
 	list_for_each_entry(cobj, chain, list) {
-		ret = cert_verify_blob(cobj->cert, chainedpubkey[0]?chainedpubkey:pubkeyfile, pubkeydir);
-		if (ret)
-			goto clean_and_return;
-
+		/* blob has payload, verify that using signature */
 		if (cobj->cert[CERT_ATTR_PAYLOAD]) {
 			struct timeval tv;
 			uint64_t validfrom;
 			uint64_t expiresat;
 			uint32_t certtype;
+
+			ret = cert_verify_blob(cobj->cert, chainedpubkey[0]?chainedpubkey:pubkeyfile, pubkeydir);
+			if (ret)
+				goto clean_and_return;
 
 			blobmsg_parse(cert_cont_policy,
 				      ARRAY_SIZE(cert_cont_policy),
@@ -260,6 +302,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				   blobmsg_data_len(payloadtb[CERT_PL_ATTR_PUBKEY]),
 				   false);
 		} else {
+		/* blob doesn't have payload, verify message using signature */
 			if (msgfile) {
 				snprintf(extsigfile, sizeof(extsigfile) - 1, "%s/%s", tmpdir, "ext-sig");
 				write_file(extsigfile,
@@ -402,6 +445,9 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		blob_put(&certbuf, CERT_ATTR_PAYLOAD, blob_data(payloadbuf.head), blob_len(payloadbuf.head));
 		snprintf(fname, sizeof(fname) - 1, "%s%s", certfile, revoker?".revoke":"");
 		write_file(fname, certbuf.head, blob_raw_len(certbuf.head), false);
+		blob_buf_free(&certbuf);
+		blob_buf_free(&payloadbuf);
+
 		revoker--;
 	}
 
@@ -431,7 +477,7 @@ static int usage(const char *cmd)
 	fprintf(stderr,
 		"Usage: %s <command> <options>\n"
 		"Commands:\n"
-		"  -A:			append (needs -c and -p and/or -x)\n"
+		"  -A:			append (needs -c and -x)\n"
 		"  -D:			dump\n"
 		"  -I:			issue cert and revoker (needs -c and -p and -s)\n"
 		"  -R:			process revoker certificate (needs -c)\n"
@@ -488,11 +534,11 @@ int main(int argc, char *argv[]) {
 		case 'P':
 			pubkeydir = optarg;
 			break;
-		case 's':
-			seckeyfile = optarg;
-			break;
 		case 'q':
 			quiet = true;
+			break;
+		case 's':
+			seckeyfile = optarg;
 			break;
 		case 'x':
 			sigfile = optarg;
@@ -504,8 +550,8 @@ int main(int argc, char *argv[]) {
 
 	switch (cmd) {
 	case CMD_APPEND:
-		if (certfile && (pubkeyfile || sigfile))
-			return cert_append(certfile, pubkeyfile, sigfile);
+		if (certfile && sigfile)
+			return cert_append(certfile, sigfile);
 		else
 			return usage(argv[0]);
 	case CMD_DUMP:
