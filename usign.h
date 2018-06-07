@@ -8,3 +8,5 @@ int usign_f_pubkey(char *fingerprint, const char *pubkeyfile);
 int usign_f_seckey(char *fingerprint, const char *seckeyfile);
 
 int usign_f_sig(char *fingerprint, const char *sigfile);
+
+int _usign_key_is_revoked(const char *fingerprint, const char *pubkeydir);

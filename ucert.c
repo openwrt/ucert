@@ -226,6 +226,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 	struct blob_attr *payloadtb[CERT_PL_ATTR_MAX];
 	char tmpdir[] = "/tmp/ucert-XXXXXX";
 	char chainedpubkey[256] = {0};
+	char chainedfp[17] = {0};
 	char extsigfile[256] = {0};
 	int ret = 1;
 	int checkmsg = 0;
@@ -295,6 +296,19 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				   blobmsg_data(payloadtb[CERT_PL_ATTR_PUBKEY]),
 				   blobmsg_data_len(payloadtb[CERT_PL_ATTR_PUBKEY]),
 				   false);
+
+			if (usign_f_pubkey(chainedfp, chainedpubkey)) {
+				if (!quiet)
+					fprintf(stderr, "cannot get fingerprint for chained key\n");
+				ret = 2;
+				goto clean_and_return;
+			}
+			if (pubkeydir && _usign_key_is_revoked(chainedfp, pubkeydir)) {
+				if (!quiet)
+					fprintf(stderr, "key %s has been revoked!\n", chainedfp);
+				ret = 4;
+				goto clean_and_return;
+			}
 		} else {
 		/* blob doesn't have payload, verify message using signature */
 			if (msgfile) {
@@ -500,9 +514,9 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		if (!payloadtb[CERT_PL_ATTR_CERTTYPE] ||
 		    !payloadtb[CERT_PL_ATTR_VALIDFROMTIME] ||
 		    !payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]) {
-				fprintf(stderr, "missing mandatory ucert attributes\n");
-				return 2;
-			}
+			fprintf(stderr, "missing mandatory ucert attributes\n");
+			return 2;
+		}
 
 		certtype = blobmsg_get_u32(payloadtb[CERT_PL_ATTR_CERTTYPE]);
 		validfrom = blobmsg_get_u64(payloadtb[CERT_PL_ATTR_VALIDFROMTIME]);
@@ -521,10 +535,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		snprintf(rfname, sizeof(rfname)-1, "%s/%s", pubkeydir, fingerprint);
 		/* check if entry in pubkeydir exists */
 		if (stat(rfname, &st) == 0) {
-			char tml[64] = {0};
-			/* if it's an existing revoker deadlink we are happy */
-			if (readlink(rfname, tml, sizeof(tml)) > 0 &&
-			    !strcmp(tml, ".revoked.")) {
+			if (_usign_key_is_revoked(fingerprint, pubkeydir)) {
 				if (!quiet)
 					fprintf(stdout, "existing revoker deadlink for key %s\n", fingerprint);
 				continue;
