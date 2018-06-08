@@ -250,6 +250,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 	char extsigfile[256] = {0};
 	int ret = 1;
 	int checkmsg = 0;
+	struct timeval tv;
 
 	if (mkdtemp(tmpdir) == NULL)
 		return errno;
@@ -257,10 +258,11 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 	if (msgfile)
 		checkmsg = -1;
 
+	gettimeofday(&tv, NULL);
+
 	list_for_each_entry(cobj, chain, list) {
 		/* blob has payload, verify that using signature */
 		if (cobj->cert[CERT_ATTR_PAYLOAD]) {
-			struct timeval tv;
 			uint64_t validfrom;
 			uint64_t expiresat;
 			uint32_t certtype;
@@ -306,7 +308,6 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				goto clean_and_return;
 			}
 
-			gettimeofday(&tv, NULL);
 			if (tv.tv_sec < validfrom ||
 			    tv.tv_sec >= expiresat) {
 				ret = 3;
@@ -409,7 +410,6 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	struct blob_buf certbuf;
 	struct blob_buf payloadbuf;
 	struct timeval tv;
-	struct stat st;
 	int pklen, siglen;
 	int revoker = 1;
 	void *c;
@@ -512,6 +512,8 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		return 1;
 	}
 
+	gettimeofday(&tv, NULL);
+
 	list_for_each_entry(cobj, &certchain, list) {
 		if (!cobj->cert[CERT_ATTR_PAYLOAD])
 			return 2;
@@ -556,7 +558,6 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 			return 2;
 		}
 
-		gettimeofday(&tv, NULL);
 		if (tv.tv_sec < validfrom) {
 			return 3;
 		}
