@@ -20,6 +20,8 @@
 
 #include "usign.h"
 
+#define USIGN_EXEC "/usr/bin/usign"
+
 /*
  * check for revoker deadlink in pubkeydir
  * return true if a revoker exists, false otherwise
@@ -48,7 +50,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 	const char *usign_argv[16] = {0};
 	unsigned int usign_argc = 0;
 
-	usign_argv[usign_argc++] = "/usr/bin/usign";
+	usign_argv[usign_argc++] = USIGN_EXEC;
 	usign_argv[usign_argc++] = "-S";
 	usign_argv[usign_argc++] = "-m";
 	usign_argv[usign_argc++] = msgfile;
@@ -98,7 +100,7 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 	if (pipe(fds))
 		return -1;
 
-	usign_argv[usign_argc++] = "/usr/bin/usign";
+	usign_argv[usign_argc++] = USIGN_EXEC;
 	usign_argv[usign_argc++] = "-F";
 
 	if (pubkeyfile) {
@@ -136,14 +138,19 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 
 	default:
 		waitpid(pid, &status, 0);
+		status = WEXITSTATUS(status);
 		if (fingerprint && !WEXITSTATUS(status)) {
-			memset(fingerprint, 0, 16);
-			read(fds[0], fingerprint, 16);
+			memset(fingerprint, 0, 17);
+			read(fds[0], fingerprint, 17);
+			if (fingerprint[16] != '\n')
+				status = -1;
+
 			fingerprint[16] = '\0';
+
 		}
 		close(fds[0]);
 		close(fds[1]);
-		return WEXITSTATUS(status);
+		return status;
 	}
 
 	return -1;
@@ -194,7 +201,7 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 			fprintf(stdout, "key %s has been revoked!\n", fingerprint);
 		return 1;
 	}
-	usign_argv[usign_argc++] = "/usr/bin/usign";
+	usign_argv[usign_argc++] = USIGN_EXEC;
 	usign_argv[usign_argc++] = "-V";
 	usign_argv[usign_argc++] = "-m";
 	usign_argv[usign_argc++] = msgfile;
