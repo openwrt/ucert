@@ -47,6 +47,11 @@ static enum {
 } cmd = CMD_NONE;
 
 static bool quiet;
+#ifndef UCERT_STRIP_MESSAGES
+#define DPRINTF(format, ...) if (!quiet) fprintf(stderr, "%s(%d): " format, __func__, __LINE__, ## __VA_ARGS__)
+#else
+#define DPRINTF(format, ...)
+#endif
 
 /*
  * ucert structure
@@ -174,6 +179,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	return (ret <= 0);
 }
 
+#ifdef UCERT_FULL
 /* append signature to certfile */
 static int cert_append(const char *certfile, const char *sigfile) {
 	FILE *fs;
@@ -198,6 +204,7 @@ static int cert_append(const char *certfile, const char *sigfile) {
 	blob_buf_free(&sigbuf);
 	return ret;
 }
+#endif
 
 /* verify the signature of a single chain element */
 static int cert_verify_blob(struct blob_attr *cert[CERT_ATTR_MAX],
@@ -278,8 +285,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
 			if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
 				ret = 1;
-				if (!quiet)
-					fprintf(stderr, "no ucert in signed payload\n");
+				DPRINTF("no ucert in signed payload\n");
 				goto clean_and_return;
 			}
 			blobmsg_parse(cert_payload_policy,
@@ -293,8 +299,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 			    !payloadtb[CERT_PL_ATTR_EXPIRETIME] ||
 			    !payloadtb[CERT_PL_ATTR_PUBKEY]) {
 				ret = 1;
-				if (!quiet)
-					fprintf(stderr, "missing mandatory ucert attributes\n");
+				DPRINTF("missing mandatory ucert attributes\n");
 				goto clean_and_return;
 			}
 			certtype = blobmsg_get_u32(payloadtb[CERT_PL_ATTR_CERTTYPE]);
@@ -303,16 +308,14 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 
 			if (certtype != CERTTYPE_AUTH) {
 				ret = 2;
-				if (!quiet)
-					fprintf(stderr, "wrong certificate type\n");
+				DPRINTF("wrong certificate type\n");
 				goto clean_and_return;
 			}
 
 			if (tv.tv_sec < validfrom ||
 			    tv.tv_sec >= expiresat) {
 				ret = 3;
-				if (!quiet)
-					fprintf(stderr, "certificate expired\n");
+				DPRINTF("certificate expired\n");
 				goto clean_and_return;
 			}
 
@@ -323,14 +326,12 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				   false);
 
 			if (usign_f_pubkey(chainedfp, chainedpubkey)) {
-				if (!quiet)
-					fprintf(stderr, "cannot get fingerprint for chained key\n");
+				DPRINTF("cannot get fingerprint for chained key\n");
 				ret = 2;
 				goto clean_and_return;
 			}
 			if (pubkeydir && _usign_key_is_revoked(chainedfp, pubkeydir)) {
-				if (!quiet)
-					fprintf(stderr, "key %s has been revoked!\n", chainedfp);
+				DPRINTF("key %s has been revoked!\n", chainedfp);
 				ret = 4;
 				goto clean_and_return;
 			}
@@ -347,15 +348,14 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 					      pubkeydir, extsigfile, quiet);
 				unlink(extsigfile);
 			} else {
-				if (!quiet)
-					fprintf(stderr, "stray trailing signature without anything to verify!\n");
+				DPRINTF("stray trailing signature without anything to verify!\n");
 				ret = 1;
 			};
 		}
 	}
 
-	if (checkmsg == -1 && !quiet)
-		fprintf(stderr, "missing signature to verify message!\n");
+	if (checkmsg == -1)
+		DPRINTF("missing signature to verify message!\n");
 
 clean_and_return:
 	if (chainedpubkey[0])
@@ -364,6 +364,7 @@ clean_and_return:
 	return ret | checkmsg;
 }
 
+#ifdef UCERT_FULL
 /* dump single chain element to console */
 static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 	int i;
@@ -392,8 +393,7 @@ static int cert_dump(const char *certfile) {
 	unsigned int count = 0;
 
 	if (cert_load(certfile, &certchain)) {
-		if (!quiet)
-			fprintf(stderr, "cannot parse cert\n");
+		DPRINTF("cannot parse cert\n");
 		return 1;
 	}
 
@@ -490,6 +490,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 
 	return 0;
 }
+#endif
 
 /* process revoker certificate */
 static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
@@ -507,8 +508,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	int ret;
 
 	if (cert_load(certfile, &certchain)) {
-		if (!quiet)
-			fprintf(stderr, "cannot parse cert\n");
+		DPRINTF("cannot parse cert\n");
 		return 1;
 	}
 
@@ -529,8 +529,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 			      blob_data(cobj->cert[CERT_ATTR_PAYLOAD]),
 			      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
 		if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
-			if (!quiet)
-				fprintf(stderr, "no ucert in signed payload\n");
+			DPRINTF("no ucert in signed payload\n");
 			return 2;
 		}
 
@@ -543,8 +542,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		if (!payloadtb[CERT_PL_ATTR_CERTTYPE] ||
 		    !payloadtb[CERT_PL_ATTR_VALIDFROMTIME] ||
 		    !payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]) {
-			if (!quiet)
-				fprintf(stderr, "missing mandatory ucert attributes\n");
+			DPRINTF("missing mandatory ucert attributes\n");
 			return 2;
 		}
 
@@ -553,8 +551,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		fingerprint = blobmsg_get_string(payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]);
 
 		if (certtype != CERTTYPE_REVOKE) {
-			if (!quiet)
-				fprintf(stderr, "wrong certificate type\n");
+			DPRINTF("wrong certificate type\n");
 			return 2;
 		}
 
@@ -566,8 +563,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		/* check if entry in pubkeydir exists */
 		if (stat(rfname, &st) == 0) {
 			if (_usign_key_is_revoked(fingerprint, pubkeydir)) {
-				if (!quiet)
-					fprintf(stdout, "existing revoker deadlink for key %s\n", fingerprint);
+				DPRINTF("existing revoker deadlink for key %s\n", fingerprint);
 				continue;
 			};
 
@@ -580,8 +576,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		if (ret)
 			return ret;
 
-		if (!quiet)
-			fprintf(stdout, "created revoker deadlink for key %s\n", fingerprint);
+		DPRINTF("created revoker deadlink for key %s\n", fingerprint);
 	};
 
 	return ret;
@@ -592,8 +587,7 @@ static int cert_verify(const char *certfile, const char *pubkeyfile, const char 
 	static LIST_HEAD(certchain);
 
 	if (cert_load(certfile, &certchain)) {
-		if (!quiet)
-			fprintf(stderr, "cannot parse cert\n");
+		DPRINTF("cannot parse cert\n");
 		return 1;
 	}
 
@@ -603,12 +597,15 @@ static int cert_verify(const char *certfile, const char *pubkeyfile, const char 
 /* output help */
 static int usage(const char *cmd)
 {
+#ifndef UCERT_STRIP_MESSAGES
 	fprintf(stderr,
 		"Usage: %s <command> <options>\n"
 		"Commands:\n"
+#ifdef UCERT_FULL
 		"  -A:			append signature (needs -c and -x)\n"
 		"  -D:			dump (needs -c)\n"
 		"  -I:			issue cert and revoker (needs -c and -p and -s)\n"
+#endif /* UCERT_FULL */
 		"  -R:			process revoker certificate (needs -c and -P)\n"
 		"  -V:			verify (needs -c and -p|-P, may have -m)\n"
 		"Options:\n"
@@ -617,10 +614,13 @@ static int usage(const char *cmd)
 		"  -p <file>:		public key file\n"
 		"  -P <path>:		public key directory (verify only)\n"
 		"  -q:			quiet (do not print verification result, use return code only)\n"
+#ifdef UCERT_FULL
 		"  -s <file>:		secret key file (issue only)\n"
-		"  -x <file>:		signature file\n"
+		"  -x <file>:		signature file (append only)\n"
+#endif /* UCERT_FULL */
 		"\n",
 		cmd);
+#endif /* UCERT_STRIP_MESSAGES */
 	return 1;
 }
 
@@ -628,15 +628,23 @@ static int usage(const char *cmd)
 int main(int argc, char *argv[]) {
 	int ch;
 	const char *msgfile = NULL;
-	const char *sigfile = NULL;
 	const char *pubkeyfile = NULL;
 	const char *pubkeydir = NULL;
 	const char *certfile = NULL;
+#ifdef UCERT_FULL
+	const char *sigfile = NULL;
 	const char *seckeyfile = NULL;
+#endif
 
 	quiet = false;
-	while ((ch = getopt(argc, argv, "ADIRVc:m:p:P:qs:x:")) != -1) {
+	while ((ch = getopt(argc, argv,
+		"RVc:m:p:P:q"
+#ifdef UCERT_FULL
+		"ADIs:x:"
+#endif
+	       )) != -1) {
 		switch (ch) {
+#ifdef UCERT_FULL
 		case 'A':
 			if (cmd != CMD_NONE)
 				return usage(argv[0]);
@@ -652,6 +660,7 @@ int main(int argc, char *argv[]) {
 				return usage(argv[0]);
 			cmd = CMD_ISSUE;
 			break;
+#endif
 		case 'R':
 			if (cmd != CMD_NONE)
 				return usage(argv[0]);
@@ -687,6 +696,7 @@ int main(int argc, char *argv[]) {
 				return usage(argv[0]);
 			quiet = true;
 			break;
+#ifdef UCERT_FULL
 		case 's':
 			if (seckeyfile || cmd != CMD_ISSUE || cmd == CMD_NONE)
 				return usage(argv[0]);
@@ -697,12 +707,14 @@ int main(int argc, char *argv[]) {
 				return usage(argv[0]);
 			sigfile = optarg;
 			break;
+#endif
 		default:
 			return usage(argv[0]);
 		}
 	}
 
 	switch (cmd) {
+#ifdef UCERT_FULL
 	case CMD_APPEND:
 		if (certfile && sigfile)
 			return cert_append(certfile, sigfile);
@@ -718,6 +730,7 @@ int main(int argc, char *argv[]) {
 			return cert_issue(certfile, pubkeyfile, seckeyfile);
 		else
 			return usage(argv[0]);
+#endif
 	case CMD_REVOKE:
 		if (certfile && pubkeydir)
 			return cert_process_revoker(certfile, pubkeydir);
@@ -728,7 +741,7 @@ int main(int argc, char *argv[]) {
 			return cert_verify(certfile, pubkeyfile, pubkeydir, msgfile);
 		else
 			return usage(argv[0]);
-	case CMD_NONE:
+	default:
 		return usage(argv[0]);
 	}
 

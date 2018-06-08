@@ -37,6 +37,7 @@ int _usign_key_is_revoked(const char *fingerprint, const char *pubkeydir) {
 	return false;
 }
 
+#ifdef UCERT_FULL
 /*
  * call usign -S ...
  * return WEXITSTATUS or -1 if fork or execv fails
@@ -77,6 +78,11 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 
 	return -1;
 }
+#else
+int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bool quiet) {
+	return -1;
+};
+#endif
 
 /*
  * call usign -F ... and set fingerprint returned
