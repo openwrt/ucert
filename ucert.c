@@ -676,7 +676,7 @@ int main(int argc, char *argv[]) {
 			pubkeydir = optarg;
 			break;
 		case 'q':
-			if (quiet || cmd == CMD_NONE)
+			if (quiet)
 				return usage(argv[0]);
 			quiet = true;
 			break;
