@@ -276,7 +276,8 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
 			if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
 				ret = 1;
-				fprintf(stderr, "no ucert in signed payload\n");
+				if (!quiet)
+					fprintf(stderr, "no ucert in signed payload\n");
 				goto clean_and_return;
 			}
 			blobmsg_parse(cert_payload_policy,
@@ -290,7 +291,8 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 			    !payloadtb[CERT_PL_ATTR_EXPIRETIME] ||
 			    !payloadtb[CERT_PL_ATTR_PUBKEY]) {
 				ret = 1;
-				fprintf(stderr, "missing mandatory ucert attributes\n");
+				if (!quiet)
+					fprintf(stderr, "missing mandatory ucert attributes\n");
 				goto clean_and_return;
 			}
 			certtype = blobmsg_get_u32(payloadtb[CERT_PL_ATTR_CERTTYPE]);
@@ -299,7 +301,8 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 
 			if (certtype != CERTTYPE_AUTH) {
 				ret = 2;
-				fprintf(stderr, "wrong certificate type\n");
+				if (!quiet)
+					fprintf(stderr, "wrong certificate type\n");
 				goto clean_and_return;
 			}
 
@@ -307,7 +310,8 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 			if (tv.tv_sec < validfrom ||
 			    tv.tv_sec >= expiresat) {
 				ret = 3;
-				fprintf(stderr, "certificate expired\n");
+				if (!quiet)
+					fprintf(stderr, "certificate expired\n");
 				goto clean_and_return;
 			}
 
@@ -342,13 +346,14 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 					      pubkeydir, extsigfile, quiet);
 				unlink(extsigfile);
 			} else {
-				fprintf(stderr, "stray trailing signature without anything to verify!\n");
+				if (!quiet)
+					fprintf(stderr, "stray trailing signature without anything to verify!\n");
 				ret = 1;
 			};
 		}
 	}
 
-	if (checkmsg == -1)
+	if (checkmsg == -1 && !quiet)
 		fprintf(stderr, "missing signature to verify message!\n");
 
 clean_and_return:
@@ -386,14 +391,14 @@ static int cert_dump(const char *certfile) {
 	unsigned int count = 0;
 
 	if (cert_load(certfile, &certchain)) {
-		fprintf(stderr, "cannot parse cert\n");
+		if (!quiet)
+			fprintf(stderr, "cannot parse cert\n");
 		return 1;
 	}
 
 	list_for_each_entry(cobj, &certchain, list) {
-		fprintf(stderr, "=== CHAIN ELEMENT %02u ===\n", ++count);
+		fprintf(stdout, "=== CHAIN ELEMENT %02u ===\n", ++count);
 		cert_dump_blob(cobj->cert);
-		fprintf(stderr, "========================\n");
 	}
 
 	return 0;
@@ -414,11 +419,6 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	char fname[256], sfname[256];
 	char pkfp[17];
 	char tmpdir[] = "/tmp/ucert-XXXXXX";
-
-	if (stat(certfile, &st) == 0) {
-		fprintf(stderr, "certfile %s exists, won't overwrite.\n", certfile);
-		return -1;
-	}
 
 	pkf = fopen(pubkeyfile, "r");
 	if (!pkf)
@@ -479,7 +479,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		blob_put(&certbuf, CERT_ATTR_SIGNATURE, sigb, siglen);
 		blob_put(&certbuf, CERT_ATTR_PAYLOAD, blob_data(payloadbuf.head), blob_len(payloadbuf.head));
 		snprintf(fname, sizeof(fname) - 1, "%s%s", certfile, revoker?".revoke":"");
-		write_file(fname, certbuf.head, blob_raw_len(certbuf.head), false);
+		write_file(fname, certbuf.head, blob_raw_len(certbuf.head), true);
 		blob_buf_free(&certbuf);
 		blob_buf_free(&payloadbuf);
 
@@ -507,14 +507,16 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	int ret;
 
 	if (cert_load(certfile, &certchain)) {
-		fprintf(stderr, "cannot parse cert\n");
+		if (!quiet)
+			fprintf(stderr, "cannot parse cert\n");
 		return 1;
 	}
 
 	list_for_each_entry(cobj, &certchain, list) {
-		/* blob has payload, verify that using signature */
 		if (!cobj->cert[CERT_ATTR_PAYLOAD])
 			return 2;
+
+		/* blob has payload, verify that using signature */
 		ret = cert_verify_blob(cobj->cert, NULL, pubkeydir);
 		if (ret)
 			return ret;
@@ -525,7 +527,8 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 			      blob_data(cobj->cert[CERT_ATTR_PAYLOAD]),
 			      blob_len(cobj->cert[CERT_ATTR_PAYLOAD]));
 		if (!containertb[CERT_CT_ATTR_PAYLOAD]) {
-			fprintf(stderr, "no ucert in signed payload\n");
+			if (!quiet)
+				fprintf(stderr, "no ucert in signed payload\n");
 			return 2;
 		}
 
@@ -538,7 +541,8 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		if (!payloadtb[CERT_PL_ATTR_CERTTYPE] ||
 		    !payloadtb[CERT_PL_ATTR_VALIDFROMTIME] ||
 		    !payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]) {
-			fprintf(stderr, "missing mandatory ucert attributes\n");
+			if (!quiet)
+				fprintf(stderr, "missing mandatory ucert attributes\n");
 			return 2;
 		}
 
@@ -547,7 +551,8 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 		fingerprint = blobmsg_get_string(payloadtb[CERT_PL_ATTR_KEY_FINGERPRINT]);
 
 		if (certtype != CERTTYPE_REVOKE) {
-			fprintf(stderr, "wrong certificate type\n");
+			if (!quiet)
+				fprintf(stderr, "wrong certificate type\n");
 			return 2;
 		}
 
@@ -586,7 +591,8 @@ static int cert_verify(const char *certfile, const char *pubkeyfile, const char 
 	static LIST_HEAD(certchain);
 
 	if (cert_load(certfile, &certchain)) {
-		fprintf(stderr, "cannot parse cert\n");
+		if (!quiet)
+			fprintf(stderr, "cannot parse cert\n");
 		return 1;
 	}
 
