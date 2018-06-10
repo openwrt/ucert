@@ -172,9 +172,8 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 
 		list_add_tail(&cobj->list, chain);
 		ret += pret;
-		bufpt = blob_next(bufpt);
 	/* repeat parsing while there is still enough remaining data in buffer */
-	} while(len > pos + sizeof(struct blob_attr));
+	} while(len > pos + sizeof(struct blob_attr) && (bufpt = blob_next(bufpt)));
 
 	return (ret <= 0);
 }
