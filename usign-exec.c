@@ -20,7 +20,11 @@
 
 #include "usign.h"
 
+#ifdef UCERT_HOST_BUILD
+#define USIGN_EXEC "usign"
+#else
 #define USIGN_EXEC "/usr/bin/usign"
+#endif
 
 /*
  * check for revoker deadlink in pubkeydir
@@ -68,7 +72,13 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 		return -1;
 
 	case 0:
-		if (execv(usign_argv[0], usign_argv))
+		if (
+#ifdef UCERT_HOST_BUILD
+			execvp(usign_argv[0], usign_argv)
+#else
+			execv(usign_argv[0], usign_argv)
+#endif
+		   )
 			return -1;
 
 		break;
@@ -131,7 +141,13 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 		close(fds[0]);
 		close(fds[1]);
 
-		if (execv(usign_argv[0], usign_argv))
+		if (
+#ifdef UCERT_HOST_BUILD
+		    execvp(usign_argv[0], usign_argv)
+#else
+		    execv(usign_argv[0], usign_argv)
+#endif
+		   )
 			return -1;
 
 		break;
@@ -230,7 +246,13 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 		return -1;
 
 	case 0:
-		if (execv(usign_argv[0], usign_argv))
+		if (
+#ifdef UCERT_HOST_BUILD
+		    execvp(usign_argv[0], usign_argv)
+#else
+		    execv(usign_argv[0], usign_argv)
+#endif
+		   )
 			return -1;
 
 		break;
