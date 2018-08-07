@@ -183,7 +183,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 static int cert_append(const char *certfile, const char *sigfile) {
 	FILE *fs;
 	char filebuf[CERT_BUF_LEN];
-	struct blob_buf sigbuf;
+	struct blob_buf sigbuf = {0};
 	int len;
 	int ret;
 
@@ -406,8 +406,8 @@ static int cert_dump(const char *certfile) {
 
 /* issue an auth certificate for pubkey */
 static int cert_issue(const char *certfile, const char *pubkeyfile, const char *seckeyfile) {
-	struct blob_buf certbuf;
-	struct blob_buf payloadbuf;
+	struct blob_buf payloadbuf = {0};
+	struct blob_buf certbuf = {0};
 	struct timeval tv;
 	int pklen, siglen;
 	int revoker = 1;
