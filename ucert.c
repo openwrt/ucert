@@ -414,7 +414,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	void *c;
 	FILE *pkf, *sigf;
 	char pkb[512];
-	char sigb[512];
+	char sigb[1024];
 	char fname[256], sfname[256];
 	char pkfp[17];
 	char tmpdir[] = "/tmp/ucert-XXXXXX";
