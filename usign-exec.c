@@ -156,9 +156,10 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 		waitpid(pid, &status, 0);
 		status = WEXITSTATUS(status);
 		if (fingerprint && !WEXITSTATUS(status)) {
+			ssize_t r;
 			memset(fingerprint, 0, 17);
-			read(fds[0], fingerprint, 17);
-			if (fingerprint[16] != '\n')
+			r = read(fds[0], fingerprint, 17);
+			if (r < 16)
 				status = -1;
 
 			fingerprint[16] = '\0';
