@@ -74,9 +74,9 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 	case 0:
 		if (
 #ifdef UCERT_HOST_BUILD
-			execvp(usign_argv[0], usign_argv)
+			execvp(usign_argv[0], (char *const *)usign_argv)
 #else
-			execv(usign_argv[0], usign_argv)
+			execv(usign_argv[0], (char *const *)usign_argv)
 #endif
 		   )
 			return -1;
@@ -143,9 +143,9 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 
 		if (
 #ifdef UCERT_HOST_BUILD
-		    execvp(usign_argv[0], usign_argv)
+		    execvp(usign_argv[0], (char *const *)usign_argv)
 #else
-		    execv(usign_argv[0], usign_argv)
+		    execv(usign_argv[0], (char *const *)usign_argv)
 #endif
 		   )
 			return -1;
@@ -249,9 +249,9 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 	case 0:
 		if (
 #ifdef UCERT_HOST_BUILD
-		    execvp(usign_argv[0], usign_argv)
+		    execvp(usign_argv[0], (char *const *)usign_argv)
 #else
-		    execv(usign_argv[0], usign_argv)
+		    execv(usign_argv[0], (char *const *)usign_argv)
 #endif
 		   )
 			return -1;
