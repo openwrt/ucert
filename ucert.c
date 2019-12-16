@@ -371,6 +371,7 @@ clean_and_return:
 /* dump single chain element to console */
 static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 	int i;
+	char *json = NULL;
 
 	for (i = 0; i < CERT_ATTR_MAX; i++) {
 		struct blob_attr *v = cert[i];
@@ -383,7 +384,13 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 			fprintf(stdout, "signature:\n---\n%s---\n", (char *) blob_data(v));
 			break;
 		case BLOB_ATTR_NESTED:
-			fprintf(stdout, "payload:\n---\n%s\n---\n", blobmsg_format_json_indent(blob_data(v), false, 0));
+			json = blobmsg_format_json_indent(blob_data(v), false, 0);
+			if (!json) {
+				DPRINTF("cannot parse payload\n");
+				continue;
+			}
+			fprintf(stdout, "payload:\n---\n%s\n---\n", json);
+			free(json);
 			break;
 		}
 	}
