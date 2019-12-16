@@ -28,13 +28,15 @@ IF(USE_RPATH)
 	SET(CMAKE_MACOSX_RPATH 1)
 ENDIF()
 
-ADD_EXECUTABLE(ucert ucert.c usign-exec.c)
+ADD_LIBRARY(ucert_lib STATIC usign-exec.c)
+ADD_EXECUTABLE(ucert ucert.c)
+
 IF(UCERT_FULL)
 	ADD_DEFINITIONS(-DUCERT_FULL)
-	TARGET_LINK_LIBRARIES(ucert ${ubox} ${blobmsg_json} ${json})
+	TARGET_LINK_LIBRARIES(ucert ucert_lib ${ubox} ${blobmsg_json} ${json})
 ELSE()
 	ADD_DEFINITIONS(-DUCERT_STRIP_MESSAGES)
-	TARGET_LINK_LIBRARIES(ucert ${ubox})
+	TARGET_LINK_LIBRARIES(ucert ucert_lib ${ubox})
 ENDIF()
 
 INSTALL(TARGETS ucert RUNTIME DESTINATION bin)
