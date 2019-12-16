@@ -48,9 +48,13 @@ static enum {
 
 static bool quiet;
 #ifndef UCERT_STRIP_MESSAGES
-#define DPRINTF(format, ...) if (!quiet) fprintf(stderr, "%s(%d): " format, __func__, __LINE__, ## __VA_ARGS__)
+#define DPRINTF(format, ...)									\
+	do {											\
+		if (!quiet)									\
+			fprintf(stderr, "%s(%d): " format, __func__, __LINE__, ## __VA_ARGS__);	\
+	} while (0)
 #else
-#define DPRINTF(format, ...)
+#define DPRINTF(format, ...) do { } while (0)
 #endif
 
 /*
@@ -133,7 +137,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	struct cert_object *cobj;
 	char filebuf[CERT_BUF_LEN];
 	int ret = 0, pret = 0;
-	int len, pos = 0;
+	size_t len, pos = 0;
 
 	f = fopen(certfile, "r");
 	if (!f)
@@ -269,8 +273,8 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 	list_for_each_entry(cobj, chain, list) {
 		/* blob has payload, verify that using signature */
 		if (cobj->cert[CERT_ATTR_PAYLOAD]) {
-			uint64_t validfrom;
-			uint64_t expiresat;
+			time_t validfrom;
+			time_t expiresat;
 			uint32_t certtype;
 
 			ret = cert_verify_blob(cobj->cert, chainedpubkey[0]?chainedpubkey:pubkeyfile, pubkeydir);
@@ -499,8 +503,8 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	struct blob_attr *payloadtb[CERT_PL_ATTR_MAX];
 	struct stat st;
 	struct timeval tv;
-	uint64_t validfrom;
-	uint32_t certtype;
+	time_t validfrom;
+	enum certtype_id certtype;
 	char *fingerprint;
 	char rfname[512];
 
