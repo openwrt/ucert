@@ -508,7 +508,7 @@ static int cert_process_revoker(const char *certfile, const char *pubkeydir) {
 	char *fingerprint;
 	char rfname[512];
 
-	int ret;
+	int ret = -1;
 
 	if (cert_load(certfile, &certchain)) {
 		DPRINTF("cannot parse cert\n");
