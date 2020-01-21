@@ -1,6 +1,7 @@
 variables:
   CI_ENABLE_UNIT_TESTING: 1
   CI_TARGET_BUILD_DEPENDS: ucert
+  CI_CMAKE_EXTRA_BUILD_ARGS: -DUCERT_FULL=on
 
 include:
   - remote: https://gitlab.com/ynezz/openwrt-ci/raw/master/openwrt-ci/gitlab/main.yml
