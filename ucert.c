@@ -381,7 +381,7 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 
 		switch(cert_policy[i].type) {
 		case BLOB_ATTR_BINARY:
-			fprintf(stdout, "signature:\n---\n%s---\n", (char *) blob_data(v));
+			printf("signature:\n---\n%s---\n", (char *) blob_data(v));
 			break;
 		case BLOB_ATTR_NESTED:
 			json = blobmsg_format_json_indent(blob_data(v), false, 0);
@@ -389,7 +389,7 @@ static void cert_dump_blob(struct blob_attr *cert[CERT_ATTR_MAX]) {
 				DPRINTF("cannot parse payload\n");
 				continue;
 			}
-			fprintf(stdout, "payload:\n---\n%s\n---\n", json);
+			printf("payload:\n---\n%s\n---\n", json);
 			free(json);
 			break;
 		}
@@ -408,7 +408,7 @@ static int cert_dump(const char *certfile) {
 	}
 
 	list_for_each_entry(cobj, &certchain, list) {
-		fprintf(stdout, "=== CHAIN ELEMENT %02u ===\n", ++count);
+		printf("=== CHAIN ELEMENT %02u ===\n", ++count);
 		cert_dump_blob(cobj->cert);
 	}
 

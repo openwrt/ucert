@@ -209,13 +209,13 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 
 	if (usign_f_sig(fingerprint, sigfile)) {
 		if (!quiet)
-			fprintf(stdout, "cannot get signing key fingerprint\n");
+			fprintf(stderr, "cannot get signing key fingerprint\n");
 		return 1;
 	}
 
 	if (pubkeydir && _usign_key_is_revoked(fingerprint, pubkeydir)) {
 		if (!quiet)
-			fprintf(stdout, "key %s has been revoked!\n", fingerprint);
+			fprintf(stderr, "key %s has been revoked!\n", fingerprint);
 		return 1;
 	}
 	usign_argv[usign_argc++] = USIGN_EXEC;
