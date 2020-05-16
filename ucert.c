@@ -164,9 +164,8 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	struct blob_attr *certtb[CERT_ATTR_MAX];
 	struct blob_attr *bufpt;
 	struct cert_object *cobj;
-	char filebuf[CERT_BUF_LEN];
-	int ret = 0, pret = 0;
-	size_t pos = 0;
+	char filebuf[CERT_BUF_LEN], *end;
+	int ret = 1;
 	ssize_t len;
 
 	len = read_file(certfile, filebuf, sizeof(filebuf) - 1, 0);
@@ -177,17 +176,16 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 	}
 
 	bufpt = (struct blob_attr *)filebuf;
-	do {
-		pret = blob_parse_untrusted(bufpt, len, certtb, cert_policy, CERT_ATTR_MAX);
-		if (pret <= 0)
-			/* no attributes found */
+	end = filebuf + len;
+
+	while (true) {
+		len = end - (char *)bufpt;
+		if (len <= 0)
 			break;
 
-		if (pos + blob_pad_len(bufpt) > (size_t) len)
-			/* blob exceeds filebuffer */
+		if (blob_parse_untrusted(bufpt, len, certtb, cert_policy, CERT_ATTR_MAX) <= 0)
+			/* no attributes found */
 			break;
-		else
-			pos += blob_pad_len(bufpt);
 
 		if (!certtb[CERT_ATTR_SIGNATURE])
 			/* no signature -> drop */
@@ -199,11 +197,17 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 			cobj->cert[CERT_ATTR_PAYLOAD] = blob_memdup(certtb[CERT_ATTR_PAYLOAD]);
 
 		list_add_tail(&cobj->list, chain);
-		ret += pret;
-	/* repeat parsing while there is still enough remaining data in buffer */
-	} while((size_t) len > pos + sizeof(struct blob_attr) && (bufpt = blob_next(bufpt)));
+		ret = 0;
 
-	return (ret <= 0);
+		/* Repeat parsing while there is still enough remaining data in buffer
+		 *
+		 * Note that blob_next() is only valid for untrusted data because blob_parse_untrusted()
+		 * verified that the buffer contains at least one blob, and that it is completely contained
+		 * in the buffer */
+		bufpt = blob_next(bufpt);
+	}
+
+	return ret;
 }
 
 #ifdef UCERT_FULL
