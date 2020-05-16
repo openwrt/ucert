@@ -76,13 +76,10 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 		if (!quiet)
 			perror("Failed to execute usign");
 		_exit(1);
-
-	default:
-		waitpid(pid, &status, 0);
-		return WEXITSTATUS(status);
 	}
 
-	return -1;
+	waitpid(pid, &status, 0);
+	return WEXITSTATUS(status);
 }
 #else
 int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bool quiet) {
@@ -137,26 +134,23 @@ static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *sec
 		if (!quiet)
 			perror("Failed to execute usign");
 		_exit(1);
-
-	default:
-		waitpid(pid, &status, 0);
-		status = WEXITSTATUS(status);
-		if (fingerprint && !WEXITSTATUS(status)) {
-			ssize_t r;
-			memset(fingerprint, 0, 17);
-			r = read(fds[0], fingerprint, 17);
-			if (r < 16)
-				status = -1;
-
-			fingerprint[16] = '\0';
-
-		}
-		close(fds[0]);
-		close(fds[1]);
-		return status;
 	}
 
-	return -1;
+	waitpid(pid, &status, 0);
+	status = WEXITSTATUS(status);
+	if (fingerprint && !WEXITSTATUS(status)) {
+		ssize_t r;
+		memset(fingerprint, 0, 17);
+		r = read(fds[0], fingerprint, 17);
+		if (r < 16)
+			status = -1;
+
+		fingerprint[16] = '\0';
+
+	}
+	close(fds[0]);
+	close(fds[1]);
+	return status;
 }
 
 /*
@@ -237,11 +231,8 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 		if (!quiet)
 			perror("Failed to execute usign");
 		_exit(1);
-
-	default:
-		waitpid(pid, &status, 0);
-		return WEXITSTATUS(status);
 	}
 
-	return -1;
+	waitpid(pid, &status, 0);
+	return WEXITSTATUS(status);
 }
