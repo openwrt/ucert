@@ -349,7 +349,7 @@ static int chain_verify(const char *msgfile, const char *pubkeyfile,
 				   blobmsg_data_len(payloadtb[CERT_PL_ATTR_PUBKEY]),
 				   false);
 
-			if (usign_f_pubkey(chainedfp, chainedpubkey)) {
+			if (usign_f_pubkey(chainedfp, chainedpubkey, quiet)) {
 				DPRINTF("cannot get fingerprint for chained key\n");
 				ret = 2;
 				goto clean_and_return;
@@ -460,7 +460,7 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 
 	pkb[pklen] = '\0';
 
-	if (usign_f_pubkey(pkfp, pubkeyfile))
+	if (usign_f_pubkey(pkfp, pubkeyfile, quiet))
 		return -1;
 
 	gettimeofday(&tv, NULL);

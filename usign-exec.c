@@ -72,10 +72,10 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 		return -1;
 
 	case 0:
-		if (execvp(usign_argv[0], (char *const *)usign_argv))
-			return -1;
-
-		break;
+		execvp(usign_argv[0], (char *const *)usign_argv);
+		if (!quiet)
+			perror("Failed to execute usign");
+		_exit(1);
 
 	default:
 		waitpid(pid, &status, 0);
@@ -94,7 +94,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
  * call usign -F ... and set fingerprint returned
  * return WEXITSTATUS or -1 if fork or execv fails
  */
-static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckeyfile, const char *sigfile) {
+static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	int fds[2];
 	pid_t pid;
 	int status;
@@ -135,10 +135,10 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 		close(fds[0]);
 		close(fds[1]);
 
-		if (execvp(usign_argv[0], (char *const *)usign_argv))
-			return -1;
-
-		break;
+		execvp(usign_argv[0], (char *const *)usign_argv);
+		if (!quiet)
+			perror("Failed to execute usign");
+		_exit(1);
 
 	default:
 		waitpid(pid, &status, 0);
@@ -164,22 +164,22 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 /*
  * call usign -F -p ...
  */
-int usign_f_pubkey(char *fingerprint, const char *pubkeyfile) {
-	return usign_f(fingerprint, pubkeyfile, NULL, NULL);
+int usign_f_pubkey(char *fingerprint, const char *pubkeyfile, bool quiet) {
+	return usign_f(fingerprint, pubkeyfile, NULL, NULL, quiet);
 }
 
 /*
  * call usign -F -s ...
  */
-int usign_f_seckey(char *fingerprint, const char *seckeyfile) {
-	return usign_f(fingerprint, NULL, seckeyfile, NULL);
+int usign_f_seckey(char *fingerprint, const char *seckeyfile, bool quiet) {
+	return usign_f(fingerprint, NULL, seckeyfile, NULL, quiet);
 }
 
 /*
  * call usign -F -x ...
  */
-int usign_f_sig(char *fingerprint, const char *sigfile) {
-	return usign_f(fingerprint, NULL, NULL, sigfile);
+int usign_f_sig(char *fingerprint, const char *sigfile, bool quiet) {
+	return usign_f(fingerprint, NULL, NULL, sigfile, quiet);
 }
 
 
@@ -195,7 +195,7 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 	unsigned int usign_argc = 0;
 	char fingerprint[17];
 
-	if (usign_f_sig(fingerprint, sigfile)) {
+	if (usign_f_sig(fingerprint, sigfile, quiet)) {
 		if (!quiet)
 			fprintf(stderr, "cannot get signing key fingerprint\n");
 		return 1;
@@ -235,10 +235,10 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 		return -1;
 
 	case 0:
-		if (execvp(usign_argv[0], (char *const *)usign_argv))
-			return -1;
-
-		break;
+		execvp(usign_argv[0], (char *const *)usign_argv);
+		if (!quiet)
+			perror("Failed to execute usign");
+		_exit(1);
 
 	default:
 		waitpid(pid, &status, 0);

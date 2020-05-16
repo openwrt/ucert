@@ -15,6 +15,8 @@
 #ifndef _USIGN_H
 #define _USIGN_H
 
+#include <stdbool.h>
+
 /**
  * Verify
  *
@@ -35,11 +37,11 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
  *
  * calls: usign -F ...
  */
-int usign_f_pubkey(char *fingerprint, const char *pubkeyfile);
+int usign_f_pubkey(char *fingerprint, const char *pubkeyfile, bool quiet);
 
-int usign_f_seckey(char *fingerprint, const char *seckeyfile);
+int usign_f_seckey(char *fingerprint, const char *seckeyfile, bool quiet);
 
-int usign_f_sig(char *fingerprint, const char *sigfile);
+int usign_f_sig(char *fingerprint, const char *sigfile, bool quiet);
 
 /**
  * custom extension to check for revokers
