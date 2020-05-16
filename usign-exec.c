@@ -136,6 +136,8 @@ static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *sec
 		_exit(1);
 	}
 
+	close(fds[1]);
+
 	waitpid(pid, &status, 0);
 	status = WEXITSTATUS(status);
 	if (fingerprint && !WEXITSTATUS(status)) {
@@ -149,7 +151,6 @@ static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *sec
 
 	}
 	close(fds[0]);
-	close(fds[1]);
 	return status;
 }
 
