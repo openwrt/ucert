@@ -37,11 +37,11 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
  *
  * calls: usign -F ...
  */
-int usign_f_pubkey(char *fingerprint, const char *pubkeyfile, bool quiet);
+int usign_f_pubkey(char fingerprint[17], const char *pubkeyfile, bool quiet);
 
-int usign_f_seckey(char *fingerprint, const char *seckeyfile, bool quiet);
+int usign_f_seckey(char fingerprint[17], const char *seckeyfile, bool quiet);
 
-int usign_f_sig(char *fingerprint, const char *sigfile, bool quiet);
+int usign_f_sig(char fingerprint[17], const char *sigfile, bool quiet);
 
 /**
  * custom extension to check for revokers

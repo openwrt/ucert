@@ -94,7 +94,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
  * call usign -F ... and set fingerprint returned
  * return WEXITSTATUS or -1 if fork fails
  */
-static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckeyfile, const char *sigfile, bool quiet) {
+static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	int fds[2];
 	pid_t pid;
 	int status;
@@ -162,21 +162,21 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 /*
  * call usign -F -p ...
  */
-int usign_f_pubkey(char *fingerprint, const char *pubkeyfile, bool quiet) {
+int usign_f_pubkey(char fingerprint[17], const char *pubkeyfile, bool quiet) {
 	return usign_f(fingerprint, pubkeyfile, NULL, NULL, quiet);
 }
 
 /*
  * call usign -F -s ...
  */
-int usign_f_seckey(char *fingerprint, const char *seckeyfile, bool quiet) {
+int usign_f_seckey(char fingerprint[17], const char *seckeyfile, bool quiet) {
 	return usign_f(fingerprint, NULL, seckeyfile, NULL, quiet);
 }
 
 /*
  * call usign -F -x ...
  */
-int usign_f_sig(char *fingerprint, const char *sigfile, bool quiet) {
+int usign_f_sig(char fingerprint[17], const char *sigfile, bool quiet) {
 	return usign_f(fingerprint, NULL, NULL, sigfile, quiet);
 }
 
