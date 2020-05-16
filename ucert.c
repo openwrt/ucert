@@ -49,10 +49,10 @@ static enum {
 
 static bool quiet;
 #ifndef UCERT_STRIP_MESSAGES
-#define DPRINTF(format, ...)									\
-	do {											\
-		if (!quiet)									\
-			fprintf(stderr, "%s(%d): " format, __func__, __LINE__, ## __VA_ARGS__);	\
+#define DPRINTF(format, ...)								\
+	do {										\
+		if (!quiet)								\
+			fprintf(stderr, "%s: " format, __func__, ## __VA_ARGS__);	\
 	} while (0)
 #else
 #define DPRINTF(format, ...) do { } while (0)

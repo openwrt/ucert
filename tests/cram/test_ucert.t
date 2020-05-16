@@ -57,9 +57,9 @@ check that ucert is producing expected results:
   ---
 
   $ ucert -D -c $TEST_INPUTS/invalid.ucert
-  cert_dump(406): cannot parse cert
+  cert_dump: cannot parse cert
   [1]
 
   $ ucert-san -D -c $TEST_INPUTS/invalid.ucert
-  cert_dump(406): cannot parse cert
+  cert_dump: cannot parse cert
   [1]
