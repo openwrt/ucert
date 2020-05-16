@@ -116,13 +116,13 @@ struct cert_object {
 };
 
 /* write buffer to file */
-static int write_file(const char *filename, void *buf, size_t len, bool append) {
+static bool write_file(const char *filename, void *buf, size_t len, bool append) {
 	FILE *f;
 	size_t outlen;
 
 	f = fopen(filename, append?"a":"w");
 	if (!f)
-		return 1;
+		return false;
 
 	outlen = fwrite(buf, 1, len, f);
 	fclose(f);
