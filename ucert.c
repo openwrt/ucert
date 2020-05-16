@@ -15,6 +15,7 @@
 
 #include <fcntl.h>
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -129,28 +130,51 @@ static bool write_file(const char *filename, void *buf, size_t len, bool append)
 	return (outlen == len);
 }
 
+/* reads a whole file to a buffer - returns -1 on errors and sets errno */
+static ssize_t read_file(const char *filename, void *buf, size_t len, size_t minlen) {
+	FILE *f;
+	ssize_t ret;
+
+	f = fopen(filename, "r");
+	if (!f)
+		return -1;
+
+	ret = fread(buf, 1, len, f);
+
+	/* Ensure that feof() yields the correct result when the file is exactly
+	 * len bytes long */
+	fgetc(f);
+
+	if (ferror(f)) {
+		ret = -1;
+	} else if (!feof(f)) {
+		errno = EOVERFLOW;
+		ret = -1;
+	} else if ((size_t)ret < minlen) {
+		errno = EINVAL;
+		ret = -1;
+	}
+
+	fclose(f);
+	return ret;
+}
+
 /* load certfile into list */
 static int cert_load(const char *certfile, struct list_head *chain) {
-	FILE *f;
 	struct blob_attr *certtb[CERT_ATTR_MAX];
 	struct blob_attr *bufpt;
 	struct cert_object *cobj;
 	char filebuf[CERT_BUF_LEN];
 	int ret = 0, pret = 0;
-	size_t len, pos = 0;
+	size_t pos = 0;
+	ssize_t len;
 
-	f = fopen(certfile, "r");
-	if (!f)
+	len = read_file(certfile, filebuf, sizeof(filebuf) - 1, 0);
+	if (len < 0) {
+		if (!quiet)
+			perror("Unable to load certificate file");
 		return 1;
-
-	len = fread(&filebuf, 1, CERT_BUF_LEN - 1, f);
-	if (len < 64)
-		return 1;
-
-	ret = ferror(f) || !feof(f);
-	fclose(f);
-	if (ret)
-		return 1;
+	}
 
 	bufpt = (struct blob_attr *)filebuf;
 	do {
@@ -159,7 +183,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 			/* no attributes found */
 			break;
 
-		if (pos + blob_pad_len(bufpt) > len)
+		if (pos + blob_pad_len(bufpt) > (size_t) len)
 			/* blob exceeds filebuffer */
 			break;
 		else
@@ -177,7 +201,7 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 		list_add_tail(&cobj->list, chain);
 		ret += pret;
 	/* repeat parsing while there is still enough remaining data in buffer */
-	} while(len > pos + sizeof(struct blob_attr) && (bufpt = blob_next(bufpt)));
+	} while((size_t) len > pos + sizeof(struct blob_attr) && (bufpt = blob_next(bufpt)));
 
 	return (ret <= 0);
 }
@@ -185,21 +209,18 @@ static int cert_load(const char *certfile, struct list_head *chain) {
 #ifdef UCERT_FULL
 /* append signature to certfile */
 static int cert_append(const char *certfile, const char *sigfile) {
-	FILE *fs;
 	char filebuf[CERT_BUF_LEN];
 	struct blob_buf sigbuf = {0};
-	int len;
+	ssize_t len;
 	int ret;
 
-	fs = fopen(sigfile, "r");
-	if (!fs)
-		return 1;
+	len = read_file(sigfile, filebuf, sizeof(filebuf) - 1, 64);
+	if (len < 0) {
+		if (!quiet)
+			perror("Unable to load signature file");
 
-	len = fread(&filebuf, 1, CERT_BUF_LEN - 1, fs);
-	ret = ferror(fs) || !feof(fs) || (len < 64);
-	fclose(fs);
-	if (ret)
 		return 1;
+	}
 
 	blob_buf_init(&sigbuf, 0);
 	blob_put(&sigbuf, CERT_ATTR_SIGNATURE, filebuf, len);
@@ -420,27 +441,24 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 	struct blob_buf payloadbuf = {0};
 	struct blob_buf certbuf = {0};
 	struct timeval tv;
-	int pklen, siglen;
+	ssize_t pklen, siglen;
 	int revoker = 1;
 	void *c;
-	FILE *pkf, *sigf;
 	char pkb[512];
 	char sigb[1024];
 	char fname[256], sfname[256];
 	char pkfp[17];
 	char tmpdir[] = "/tmp/ucert-XXXXXX";
 
-	pkf = fopen(pubkeyfile, "r");
-	if (!pkf)
-		return -1;
+	pklen = read_file(pubkeyfile, pkb, sizeof(pkb) - 1, 32);
+	if (pklen < 0) {
+		if (!quiet)
+			perror("Unable to load public key file");
 
-	pklen = fread(pkb, 1, 512, pkf);
+		return -1;
+	}
+
 	pkb[pklen] = '\0';
-
-	if (pklen < 32)
-		return -1;
-
-	fclose(pkf);
 
 	if (usign_f_pubkey(pkfp, pubkeyfile))
 		return -1;
@@ -471,16 +489,15 @@ static int cert_issue(const char *certfile, const char *pubkeyfile, const char *
 		if (usign_s(fname, seckeyfile, sfname, quiet))
 			return 1;
 
-		sigf = fopen(sfname, "r");
-		if (!sigf)
-			return 1;
+		siglen = read_file(sfname, sigb, sizeof(sigb) - 1, 1);
+		if (siglen < 0) {
+			if (!quiet)
+				perror("Unable to load signature file");
 
-		siglen = fread(sigb, 1, 1024, sigf);
-		if (siglen < 1)
 			return 1;
+		}
 
 		sigb[siglen] = '\0';
-		fclose(sigf);
 
 		unlink(fname);
 		unlink(sfname);
