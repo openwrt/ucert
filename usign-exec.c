@@ -79,7 +79,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 	}
 
 	waitpid(pid, &status, 0);
-	return WEXITSTATUS(status);
+	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 #else
 int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bool quiet) {
@@ -139,8 +139,9 @@ static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *sec
 	close(fds[1]);
 
 	waitpid(pid, &status, 0);
-	status = WEXITSTATUS(status);
-	if (fingerprint && !WEXITSTATUS(status)) {
+	status = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+	if (fingerprint && !status) {
 		ssize_t r;
 		memset(fingerprint, 0, 17);
 		r = read(fds[0], fingerprint, 17);
@@ -235,5 +236,5 @@ int usign_v(const char *msgfile, const char *pubkeyfile,
 	}
 
 	waitpid(pid, &status, 0);
-	return WEXITSTATUS(status);
+	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
