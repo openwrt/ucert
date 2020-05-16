@@ -93,6 +93,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
  */
 static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	int fds[2];
+	FILE *f;
 	pid_t pid;
 	int status;
 	const char *usign_argv[16] = {0};
@@ -141,17 +142,22 @@ static int usign_f(char fingerprint[17], const char *pubkeyfile, const char *sec
 	waitpid(pid, &status, 0);
 	status = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
-	if (fingerprint && !status) {
-		ssize_t r;
-		memset(fingerprint, 0, 17);
-		r = read(fds[0], fingerprint, 17);
-		if (r < 16)
-			status = -1;
-
-		fingerprint[16] = '\0';
-
+	if (!fingerprint || status) {
+		close(fds[0]);
+		return status;
 	}
-	close(fds[0]);
+
+	f = fdopen(fds[0], "r");
+	if (fread(fingerprint, 1, 16, f) != 16)
+		status = -1;
+	fclose(f);
+	if (status)
+		return status;
+
+	fingerprint[16] = '\0';
+	if (strspn(fingerprint, "0123456789abcdefABCDEF") != 16)
+		status = -1;
+
 	return status;
 }
 
