@@ -46,7 +46,7 @@ int _usign_key_is_revoked(const char *fingerprint, const char *pubkeydir) {
 #ifdef UCERT_FULL
 /*
  * call usign -S ...
- * return WEXITSTATUS or -1 if fork or execv fails
+ * return WEXITSTATUS or -1 if fork fails
  */
 int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	pid_t pid;
@@ -92,7 +92,7 @@ int usign_s(const char *msgfile, const char *seckeyfile, const char *sigfile, bo
 
 /*
  * call usign -F ... and set fingerprint returned
- * return WEXITSTATUS or -1 if fork or execv fails
+ * return WEXITSTATUS or -1 if fork fails
  */
 static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckeyfile, const char *sigfile, bool quiet) {
 	int fds[2];
@@ -130,8 +130,6 @@ static int usign_f(char *fingerprint, const char *pubkeyfile, const char *seckey
 	case 0:
 		dup2(fds[1], 1);
 
-		close(0);
-		close(2);
 		close(fds[0]);
 		close(fds[1]);
 
@@ -185,7 +183,7 @@ int usign_f_sig(char *fingerprint, const char *sigfile, bool quiet) {
 
 /*
  * call usign -V ...
- * return WEXITSTATUS or -1 if fork or execv fails
+ * return WEXITSTATUS or -1 if fork fails
  */
 int usign_v(const char *msgfile, const char *pubkeyfile,
 	    const char *pubkeydir, const char *sigfile, bool quiet) {
